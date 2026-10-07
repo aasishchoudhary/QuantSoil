@@ -13,6 +13,6 @@ jobs:
       - name: Install package and test dependencies
         run: python -m pip install --upgrade pip && python -m pip install -e ".[test]"
       - name: Validate schemas
-        run: python -m json.tool schemas/observation.schema.json >/dev/null && python -m json.tool schemas/entity.schema.json >/dev/null && python -m json.tool schemas/map-feature.schema.json >/dev/null
+        run: python -m json.tool schemas/observation.schema.json >/dev/null && python -m json.tool schemas/entity.schema.json >/dev/null && python -m json.tool schemas/map-feature.schema.json >/dev/null && python -m json.tool schemas/evidence-record.schema.json >/dev/null
       - name: Run unit tests
         run: python -m pytest -q
