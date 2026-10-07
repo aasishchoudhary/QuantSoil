@@ -12,7 +12,6 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
-  issues: write
   id-token: write
 
 jobs:
@@ -32,6 +31,16 @@ jobs:
           git config user.name "God's Eye Autonomous Engineer"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Stop when an autonomous PR is already awaiting review
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          count="$(gh pr list --state open --search 'head:autonomous/' --json number --jq 'length')"
+          if [ "$count" -gt 0 ]; then
+            echo "An autonomous PR is already open; waiting for review/merge."
+            exit 0
+          fi
+
       - name: Configure AWS credentials through OIDC
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
@@ -42,18 +51,34 @@ jobs:
       - name: Install autonomy dependencies
         run: python -m pip install --upgrade pip && python -m pip install -e ".[test,autonomy]"
 
-      - name: Select bounded task
+      - name: Select next unmerged bounded task
         id: task
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          python - <<'PY' > /tmp/task.json
+          import json, subprocess
+          tasks = json.load(open("scripts/autonomy/tasks.json", encoding="utf-8"))["tasks"]
+          for task in sorted(tasks, key=lambda x: x["priority"]):
+              result = subprocess.run(
+                  ["gh","pr","list","--state","merged","--search",
+                   f'"feat(autonomy): advance {task["id"]}"',"--json","number","--jq","length"],
+                  text=True, capture_output=True, check=True
+              )
+              if int(result.stdout.strip() or "0") == 0:
+                  print(json.dumps(task))
+                  break
+          else:
+              print(json.dumps({"id":"backlog-discovery","goal":"Inspect the repository against AGENTS.md and EVALUATION_POLICY.md. Select one missing production-critical implementation slice, implement it with tests, and document the evidence. Do not modify policy or workflow files."}))
+          PY
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import json
-          tasks = json.load(open("scripts/autonomy/tasks.json", encoding="utf-8"))["tasks"]
-          task = sorted(tasks, key=lambda x: x["priority"])[0]
+          task=json.load(open("/tmp/task.json",encoding="utf-8"))
           print("task<<EOF")
           print(task["goal"])
           print("EOF")
-          print(f"id={task['id']}")
+          print("id="+task["id"])
           PY
 
       - name: Create isolated branch
@@ -89,4 +114,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TASK_ID: ${{ steps.task.outputs.id }}
         run: |
-          gh pr create --base main --head "autonomous/$TASK_ID-${{ github.run_id }}"             --title "feat(autonomy): advance $TASK_ID"             --body "Autonomous bounded implementation task: $TASK_ID. Generated on an isolated branch; deterministic tests and diff checks passed. Human and architectural review remains required before merge."
+          gh pr create             --base main             --head "autonomous/$TASK_ID-${{ github.run_id }}"             --title "feat(autonomy): advance $TASK_ID"             --body "Autonomous bounded implementation task: $TASK_ID. Generated on an isolated branch; deterministic tests and diff checks passed. Human and architectural review remains required before merge."
