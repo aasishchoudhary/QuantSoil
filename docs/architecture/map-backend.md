@@ -26,7 +26,7 @@ The response is a GeoJSON FeatureCollection plus generation metadata. Each featu
 
 ## Production path
 
-The current Python API establishes the contract and a dependency-free repository implementation for tests. Its in-memory geometry filter is a conservative bbox candidate check; PostGIS remains the authoritative spatial execution path. The next production step is a PostGIS repository adapter using the map_features_in_bbox SQL function, followed by authentication, RBAC, audit events, pagination/tiles, and source/license policy enforcement at the gateway.
+The Python API establishes the contract and a dependency-free repository implementation for tests. Its in-memory geometry filter is a conservative bbox candidate check; PostGIS remains the authoritative spatial execution path. The repository now includes a DB-API-compatible PostGIS adapter backed by map_features_in_bbox. Remaining production hardening includes authenticated gateway integration, RBAC, audit events, pagination/tiles, and source/license policy enforcement.
 
 ## Map clients
 
