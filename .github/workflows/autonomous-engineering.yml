@@ -36,7 +36,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          count="$(gh pr list --state open --search 'head:autonomous/' --json number --jq 'length')"
+          count="$(gh pr list --state open --json headRefName --jq '[.[] | select(.headRefName | startswith("autonomous/"))] | length')"
           if [ "$count" -gt 0 ]; then
             echo "An autonomous PR is already open; waiting for review/merge."
             echo "proceed=false" >> "$GITHUB_OUTPUT"
@@ -100,6 +100,10 @@ jobs:
           GODS_EYE_MODEL_ID: amazon.nova-pro-v1:0
           AWS_REGION: ap-south-1
         run: python scripts/autonomy/agent.py
+
+      - name: Validate autonomous change scope
+        if: steps.gate.outputs.proceed == 'true'
+        run: python scripts/autonomy/validate_change.py
 
       - name: Validate and inspect changes
         if: steps.gate.outputs.proceed == 'true'
