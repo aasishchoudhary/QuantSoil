@@ -1,0 +1,11 @@
+# Architecture-sensitive paths require repository owner review.
+* @aasishchoudhary
+/ARCHITECTURE.md @aasishchoudhary
+/AGENTS.md @aasishchoudhary
+/DATA_GOVERNANCE.md @aasishchoudhary
+/SECURITY.md @aasishchoudhary
+/EVALUATION_POLICY.md @aasishchoudhary
+/db/ @aasishchoudhary
+/packages/ @aasishchoudhary
+/services/ @aasishchoudhary
+/infrastructure/ @aasishchoudhary
