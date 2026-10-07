@@ -1,0 +1,132 @@
+name: Autonomous Engineering
+
+on:
+  schedule:
+    - cron: "2/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: gods-eye-autonomous-engineering
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  engineer:
+    name: Bounded autonomous implementation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "God's Eye Autonomous Engineer"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Check autonomous queue gate
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          count="$(gh pr list --state open --json headRefName --jq '[.[] | select(.headRefName | startswith("autonomous/"))] | length')"
+          if [ "$count" -gt 0 ]; then
+            echo "An autonomous PR is already open; waiting for review/merge."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials through OIDC
+        if: steps.gate.outputs.proceed == 'true'
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.GODS_EYE_AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+          role-session-name: gods-eye-${{ github.run_id }}
+
+      - name: Install autonomy dependencies
+        if: steps.gate.outputs.proceed == 'true'
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[test,autonomy]"
+
+      - name: Select next unmerged bounded task
+        if: steps.gate.outputs.proceed == 'true'
+        id: task
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY' > /tmp/task.json
+          import json, subprocess
+          tasks = json.load(open("scripts/autonomy/tasks.json", encoding="utf-8"))["tasks"]
+          for task in sorted(tasks, key=lambda x: x["priority"]):
+              result = subprocess.run(
+                  ["gh","pr","list","--state","merged","--search",
+                   f'"feat(autonomy): advance {task["id"]}"',"--json","number","--jq","length"],
+                  text=True, capture_output=True, check=True
+              )
+              if int(result.stdout.strip() or "0") == 0:
+                  print(json.dumps(task))
+                  break
+          else:
+              print(json.dumps({"id":"backlog-discovery","goal":"Inspect the repository against AGENTS.md and EVALUATION_POLICY.md. Select one missing production-critical implementation slice, implement it with tests, and document the evidence. Do not modify policy or workflow files."}))
+          PY
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          task=json.load(open("/tmp/task.json",encoding="utf-8"))
+          print("task<<EOF")
+          print(task["goal"])
+          print("EOF")
+          print("id="+task["id"])
+          PY
+
+      - name: Create isolated branch
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          TASK_ID: ${{ steps.task.outputs.id }}
+        run: git switch -c "autonomous/${TASK_ID}-${{ github.run_id }}"
+
+      - name: Run bounded agent
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GODS_EYE_TASK: ${{ steps.task.outputs.task }}
+          GODS_EYE_MODEL_ID: amazon.nova-pro-v1:0
+          AWS_REGION: ap-south-1
+        run: python scripts/autonomy/agent.py
+
+      - name: Validate autonomous change scope
+        if: steps.gate.outputs.proceed == 'true'
+        run: python scripts/autonomy/validate_change.py
+
+      - name: Validate and inspect changes
+        if: steps.gate.outputs.proceed == 'true'
+        run: |
+          python -m pytest -q
+          git diff --check
+          git status --short
+          test -n "$(git status --porcelain)"
+
+      - name: Commit and push isolated branch
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          TASK_ID: ${{ steps.task.outputs.id }}
+        run: |
+          git add packages services connectors schemas tests docs db scripts pyproject.toml
+          git diff --cached --check
+          git commit -m "feat(autonomy): advance $TASK_ID"
+          git push --set-upstream origin "autonomous/$TASK_ID-${{ github.run_id }}"
+
+      - name: Open pull request
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TASK_ID: ${{ steps.task.outputs.id }}
+        run: |
+          gh pr create             --base main             --head "autonomous/$TASK_ID-${{ github.run_id }}"             --title "feat(autonomy): advance $TASK_ID"             --body "Autonomous bounded implementation task: $TASK_ID. Generated on an isolated branch; deterministic tests and diff checks passed. Human and architectural review remains required before merge."
