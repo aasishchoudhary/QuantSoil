@@ -1,0 +1,9 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate schemas
+        run: python -m json.tool schemas/observation.schema.json >/dev/null && python -m json.tool schemas/entity.schema.json >/dev/null
