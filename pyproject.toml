@@ -17,3 +17,7 @@ test = ["pytest>=8"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.setuptools.packages.find]
+include = ["packages*", "services*"]
+exclude = ["db*", "schemas*", "connectors*"]
