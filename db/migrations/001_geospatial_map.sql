@@ -74,7 +74,12 @@ AS $$
         ST_AsGeoJSON(mf.geometry)::jsonb,
         mf.properties,
         mf.confidence,
-        mf.observed_at
+        mf.observed_at,
+        mf.raw_payload_hash,
+        mf.parser_version,
+        mf.license_class,
+        mf.valid_from,
+        mf.valid_to
     FROM map_features mf
     WHERE mf.geometry && ST_MakeEnvelope(
         min_lon, min_lat, max_lon, max_lat, 4326
