@@ -1,0 +1,92 @@
+name: Autonomous Engineering
+
+on:
+  schedule:
+    - cron: "2/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: gods-eye-autonomous-engineering
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  engineer:
+    name: Bounded autonomous implementation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "God's Eye Autonomous Engineer"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Configure AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.GODS_EYE_AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+          role-session-name: gods-eye-${{ github.run_id }}
+
+      - name: Install autonomy dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[test,autonomy]"
+
+      - name: Select bounded task
+        id: task
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          tasks = json.load(open("scripts/autonomy/tasks.json", encoding="utf-8"))["tasks"]
+          task = sorted(tasks, key=lambda x: x["priority"])[0]
+          print("task<<EOF")
+          print(task["goal"])
+          print("EOF")
+          print(f"id={task['id']}")
+          PY
+
+      - name: Create isolated branch
+        env:
+          TASK_ID: ${{ steps.task.outputs.id }}
+        run: git switch -c "autonomous/${TASK_ID}-${{ github.run_id }}"
+
+      - name: Run bounded agent
+        env:
+          GODS_EYE_TASK: ${{ steps.task.outputs.task }}
+          GODS_EYE_MODEL_ID: amazon.nova-pro-v1:0
+          AWS_REGION: ap-south-1
+        run: python scripts/autonomy/agent.py
+
+      - name: Validate and inspect changes
+        run: |
+          python -m pytest -q
+          git diff --check
+          git status --short
+          test -n "$(git status --porcelain)"
+
+      - name: Commit and push isolated branch
+        env:
+          TASK_ID: ${{ steps.task.outputs.id }}
+        run: |
+          git add packages services connectors schemas tests docs db scripts pyproject.toml
+          git diff --cached --check
+          git commit -m "feat(autonomy): advance $TASK_ID"
+          git push --set-upstream origin "autonomous/$TASK_ID-${{ github.run_id }}"
+
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TASK_ID: ${{ steps.task.outputs.id }}
+        run: |
+          gh pr create --base main --head "autonomous/$TASK_ID-${{ github.run_id }}"             --title "feat(autonomy): advance $TASK_ID"             --body "Autonomous bounded implementation task: $TASK_ID. Generated on an isolated branch; deterministic tests and diff checks passed. Human and architectural review remains required before merge."
