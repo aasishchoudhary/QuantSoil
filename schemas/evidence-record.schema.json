@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gods-eye-world-intelligence.dev/schemas/evidence-record.schema.json",
+  "title": "Evidence Record",
+  "description": "Immutable source assertion with content identity and provenance.",
+  "type": "object",
+  "required": ["evidence_id","source","source_record_id","observed_at","ingested_at","payload","raw_payload_hash","parser_version","schema_version","license_class"],
+  "properties": {
+    "evidence_id": {"type":"string","minLength":1},
+    "source": {"type":"string","minLength":1},
+    "source_record_id": {"type":"string","minLength":1},
+    "observed_at": {"type":"string","format":"date-time"},
+    "acquired_at": {"type":["string","null"],"format":"date-time"},
+    "ingested_at": {"type":"string","format":"date-time"},
+    "payload": {"type":"object"},
+    "raw_payload_hash": {"type":"string","pattern":"^[A-Fa-f0-9]{64}$"},
+    "parser_version": {"type":"string","minLength":1},
+    "schema_version": {"type":"string","minLength":1},
+    "license_class": {"type":"string","minLength":1}
+  },
+  "additionalProperties": false
+}
