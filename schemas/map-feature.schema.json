@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gods-eye-world-intelligence.dev/schemas/map-feature.schema.json",
+  "title": "Map Feature Projection",
+  "description": "Evidence-aware GeoJSON feature projected from an observation.",
+  "type": "object",
+  "required": ["type", "id", "geometry", "properties"],
+  "properties": {
+    "type": {"const": "Feature"},
+    "id": {"type": "string", "minLength": 1},
+    "geometry": {"type": ["object", "null"]},
+    "properties": {
+      "type": "object",
+      "required": ["feature_type", "source", "source_record_id"],
+      "properties": {
+        "feature_type": {"type": "string", "minLength": 1},
+        "source": {"type": "string", "minLength": 1},
+        "source_record_id": {"type": "string", "minLength": 1},
+        "observation_id": {"type": ["string", "null"]},
+        "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "observed_at": {"type": ["string", "null"], "format": "date-time"},
+        "raw_payload_hash": {"type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$"},
+        "parser_version": {"type": ["string", "null"]},
+        "license_class": {"type": ["string", "null"]},
+        "valid_from": {"type": ["string", "null"], "format": "date-time"},
+        "valid_to": {"type": ["string", "null"], "format": "date-time"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
