@@ -22,11 +22,11 @@ GET /health
 
 GET /v1/map/features?bbox=minLon,minLat,maxLon,maxLat&at=<ISO-8601>&limit=500
 
-The response is a GeoJSON FeatureCollection plus generation metadata.
+The response is a GeoJSON FeatureCollection plus generation metadata. Each feature exposes source, source_record_id, observation_id, observed_at, confidence, raw_payload_hash, parser_version, and license_class so a rendered object remains traceable to its evidence boundary.
 
 ## Production path
 
-The current Python API establishes the contract and a dependency-free repository implementation for tests. The next production step is a PostGIS repository adapter using the map_features_in_bbox SQL function, followed by authentication, RBAC, audit events, pagination/tiles, and source/license policy enforcement at the gateway.
+The Python API establishes the contract and a dependency-free repository implementation for tests. Its in-memory geometry filter is a conservative bbox candidate check; PostGIS remains the authoritative spatial execution path. The repository now includes a DB-API-compatible PostGIS adapter backed by map_features_in_bbox. Remaining production hardening includes authenticated gateway integration, RBAC, audit events, pagination/tiles, and source/license policy enforcement.
 
 ## Map clients
 
