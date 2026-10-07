@@ -60,7 +60,12 @@ RETURNS TABLE (
     geometry JSONB,
     properties JSONB,
     confidence DOUBLE PRECISION,
-    observed_at TIMESTAMPTZ
+    observed_at TIMESTAMPTZ,
+    raw_payload_hash CHAR(64),
+    parser_version TEXT,
+    license_class TEXT,
+    valid_from TIMESTAMPTZ,
+    valid_to TIMESTAMPTZ
 )
 LANGUAGE SQL
 STABLE
