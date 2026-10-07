@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Entity",
+  "type": "object",
+  "required": ["entity_id", "entity_type", "confidence", "evidence_refs"],
+  "properties": {
+    "entity_id": {"type": "string"},
+    "entity_type": {"type": "string"},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "properties": {"type": "object"},
+    "geometry": {"type": ["object", "null"]},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}},
+    "valid_from": {"type": ["string", "null"], "format": "date-time"},
+    "valid_to": {"type": ["string", "null"], "format": "date-time"}
+  },
+  "additionalProperties": false
+}
