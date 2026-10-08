@@ -1,15 +1,10 @@
 {
-  "version": 4,
+  "version": 5,
   "tasks": [
     {
       "id": "public-source-expansion",
       "priority": 30,
       "goal": "Add governed public connectors for weather, disaster, and geospatial feeds using explicit license metadata, schemas, fixtures, and source-health monitoring."
-    },
-    {
-      "id": "evaluation-gates",
-      "priority": 60,
-      "goal": "Add end-to-end replay, provenance, contradiction, stale-data, outage, schema-drift, and performance acceptance suites."
     },
     {
       "id": "production-runtime",
