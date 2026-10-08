@@ -1,66 +1,409 @@
-import {Viewer,Cartesian3,GeoJsonDataSource,Color,ConstantProperty,OpenStreetMapImageryProvider,EllipsoidTerrainProvider} from "cesium";
+import {
+  Viewer,
+  Cartesian3,
+  Color,
+  ConstantProperty,
+  GeoJsonDataSource,
+  OpenStreetMapImageryProvider,
+  EllipsoidTerrainProvider,
+  ScreenSpaceEventHandler,
+  ScreenSpaceEventType,
+  type Entity,
+} from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import "./style.css";
 
-const API=import.meta.env.VITE_ANALYST_API_BASE||"/v1/analyst";
-const app=document.querySelector<HTMLDivElement>("#app")!;
-app.innerHTML=`
-<div class="shell">
-  <header><div><strong>GOD'S EYE</strong><span>WORLD INTELLIGENCE</span></div><div id="status">CONNECTING</div></header>
-  <main><section id="globe"></section><aside>
-    <h2>Evidence-first analyst</h2>
-    <p class="muted">Authoritative state is read-only. Every result retains evidence references.</p>
-    <label>Entity ID<input id="entity" placeholder="entity-id"/></label>
-    <div class="actions"><button id="timeline">Timeline</button><button id="clear">Clear</button></div>
-    <div id="results" class="results">Move the globe or query an entity.</div>
-    <footer>© OpenStreetMap contributors • intelligence data served by governed analyst API</footer>
-  </aside></main>
+const API = import.meta.env.VITE_ANALYST_API_BASE || "/v1/analyst";
+const app = document.querySelector<HTMLDivElement>("#app")!;
+
+app.innerHTML = `
+<div class="app-shell">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">GE</div>
+      <div><strong>GOD'S EYE</strong><span>WORLD INTELLIGENCE</span></div>
+    </div>
+    <div class="mission">
+      <span class="eyebrow">MISSION</span>
+      <span id="mission-name">GLOBAL SITUATIONAL AWARENESS</span>
+    </div>
+    <div class="system-status"><i id="status-dot"></i><span id="status">INITIALIZING</span></div>
+  </header>
+
+  <main class="workspace">
+    <aside class="left-rail">
+      <section class="panel-section">
+        <div class="section-head"><span>INVESTIGATION</span><b>01</b></div>
+        <label class="field-label" for="entity">ENTITY / OBJECT ID</label>
+        <div class="search-row">
+          <input id="entity" autocomplete="off" placeholder="e.g. entity-001"/>
+          <button id="inspect" title="Inspect entity">↗</button>
+        </div>
+        <div class="quick-actions">
+          <button id="global-view">GLOBAL</button>
+          <button id="india-view">INDIA</button>
+          <button id="reset-view">RESET</button>
+        </div>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-head"><span>DATA LAYERS</span><b>02</b></div>
+        <label class="toggle"><input id="layer-entities" type="checkbox" checked/><span></span><em>WORLD STATE ENTITIES</em></label>
+        <label class="toggle"><input id="layer-evidence" type="checkbox" checked/><span></span><em>EVIDENCE FEATURES</em></label>
+        <label class="toggle"><input id="layer-labels" type="checkbox" checked/><span></span><em>MAP LABELS</em></label>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-head"><span>SOURCE POSTURE</span><b>03</b></div>
+        <div class="metric-grid">
+          <div><small>FEATURES</small><strong id="feature-count">—</strong></div>
+          <div><small>SOURCES</small><strong id="source-count">—</strong></div>
+          <div><small>EVIDENCE</small><strong id="evidence-count">—</strong></div>
+          <div><small>CONFIDENCE</small><strong id="confidence">—</strong></div>
+        </div>
+      </section>
+
+      <section class="panel-section doctrine">
+        <div class="section-head"><span>ANALYTIC DOCTRINE</span><b>04</b></div>
+        <p>Public-source intelligence is treated as evidence, not truth. Claims remain attributable, time-bounded and confidence-scored.</p>
+        <div class="legend"><span><i class="real"></i>OBSERVED</span><span><i class="derived"></i>DERIVED</span><span><i class="predicted"></i>PREDICTED</span></div>
+      </section>
+    </aside>
+
+    <section class="map-stage">
+      <div id="globe"></div>
+      <div class="map-overlay top-left">
+        <span class="mode-tag">3D / WGS84</span><span id="view-coords">GLOBAL VIEW</span>
+      </div>
+      <div class="map-overlay top-right">
+        <button id="refresh" class="icon-btn" title="Refresh intelligence layer">↻</button>
+      </div>
+      <div id="map-empty" class="map-empty">
+        <div class="empty-kicker">WORLD MODEL</div>
+        <h1>Awaiting authoritative state</h1>
+        <p>The globe is live. Intelligence features appear when the governed analyst runtime and its evidence-backed world state are ready.</p>
+      </div>
+      <div class="scale"><span>WGS84</span><span>GEOINT VIEW</span></div>
+    </section>
+
+    <aside class="right-panel">
+      <section class="inspector-head">
+        <div><span class="eyebrow">ANALYST</span><h2 id="inspector-title">Situation overview</h2></div>
+        <span id="record-state" class="state-badge">NO SELECTION</span>
+      </section>
+
+      <section id="inspector" class="inspector-body">
+        <div class="overview-grid">
+          <div><small>WORLD STATE</small><strong id="world-state">—</strong></div>
+          <div><small>OBSERVED</small><strong id="observed-at">—</strong></div>
+          <div><small>VALID FROM</small><strong id="valid-from">—</strong></div>
+          <div><small>CONFIDENCE</small><strong id="entity-confidence">—</strong></div>
+        </div>
+        <div class="inspector-card">
+          <div class="card-title">ENTITY PROPERTIES</div>
+          <pre id="properties">Select an entity or run an investigation.</pre>
+        </div>
+        <div class="inspector-card">
+          <div class="card-title">EVIDENCE & PROVENANCE</div>
+          <div id="evidence-list" class="evidence-list"><span class="muted">No evidence selected.</span></div>
+        </div>
+        <div class="inspector-card">
+          <div class="card-title">TEMPORAL CHANGE</div>
+          <div class="timeline-actions"><button id="timeline">LAST 7 DAYS</button><button id="timeline-30">30 DAYS</button></div>
+          <div id="timeline-results" class="timeline-results"><span class="muted">No temporal query executed.</span></div>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <footer class="bottombar">
+    <div><span class="live-pulse"></span><b id="footer-status">READ-ONLY ANALYST</b><span>•</span><span>PROVENANCE PRESERVED</span></div>
+    <div id="last-refresh">NOT REFRESHED</div>
+  </footer>
 </div>`;
 
-const viewer=new Viewer("globe",{
-  animation:false,timeline:false,baseLayerPicker:false,geocoder:false,homeButton:true,
-  navigationHelpButton:false,sceneModePicker:false,terrainProvider:new EllipsoidTerrainProvider(),
+const $ = <T extends Element>(selector: string) => document.querySelector<T>(selector)!;
+const statusEl = $("#status");
+const statusDot = $("#status-dot");
+const emptyEl = $("#map-empty");
+const resultsEl = $("#timeline-results");
+const entityInput = $("#entity") as HTMLInputElement;
+const featureCount = $("#feature-count");
+const sourceCount = $("#source-count");
+const evidenceCount = $("#evidence-count");
+const confidenceEl = $("#confidence");
+const dataSources = new Map<string, any>();
+let requestSeq = 0;
+let lastFeatures: any[] = [];
+let runtimeReady = false;
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
+  }[char] || char));
+}
+
+function setStatus(label: string, mode: "ready" | "warn" | "error" | "loading"): void {
+  statusEl.textContent = label;
+  statusDot.className = mode;
+}
+
+function setMetric(el: HTMLElement, value: string | number): void {
+  el.textContent = String(value);
+}
+
+function formatTime(value: unknown): string {
+  if (!value) return "—";
+  const date = new Date(String(value));
+  return Number.isNaN(date.valueOf()) ? String(value) : date.toISOString().replace(".000Z", "Z");
+}
+
+function confidenceLabel(value: unknown): string {
+  if (typeof value !== "number") return "—";
+  return `${Math.round(value * 100)}%`;
+}
+
+const viewer = new Viewer("globe", {
+  animation: false,
+  timeline: false,
+  baseLayerPicker: false,
+  geocoder: false,
+  homeButton: false,
+  navigationHelpButton: false,
+  sceneModePicker: false,
+  fullscreenButton: false,
+  terrainProvider: new EllipsoidTerrainProvider(),
+  selectionIndicator: false,
+  infoBox: false,
 });
 viewer.imageryLayers.removeAll();
-viewer.imageryLayers.addImageryProvider(new OpenStreetMapImageryProvider({url:"https://tile.openstreetmap.org/"}));
-viewer.camera.setView({destination:Cartesian3.fromDegrees(78,23,9000000)});
-const status=document.querySelector("#status")!;
-const results=document.querySelector<HTMLDivElement>("#results")!;
+viewer.imageryLayers.addImageryProvider(new OpenStreetMapImageryProvider({
+  url: "https://tile.openstreetmap.org/",
+}));
+viewer.camera.setView({ destination: Cartesian3.fromDegrees(78, 23, 9000000) });
 
-function bbox():string{
-  const r=viewer.camera.computeViewRectangle(viewer.scene.globe.ellipsoid);
-  if(!r) return "";
-  const d=(x:number)=>x*180/Math.PI;
-  return [d(r.west),d(r.south),d(r.east),d(r.north)].join(",");
+function setLayerVisibility(): void {
+  const entities = dataSources.get("analyst");
+  if (entities) entities.show = ($("#layer-entities") as HTMLInputElement).checked;
 }
-let requestSeq=0;
-async function refreshMap(){
-  const id=++requestSeq; const box=bbox(); if(!box)return;
-  try{
-    const response=await fetch(`${API}/spatial?bbox=${encodeURIComponent(box)}&limit=500`);
-    if(!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data=await response.json();
-    if(id!==requestSeq)return;
-    const existing=viewer.dataSources.getByName("analyst")[0]; if(existing) viewer.dataSources.remove(existing,true);
-    const ds=await GeoJsonDataSource.load(data,{clampToGround:false});
-    ds.name="analyst";
-    ds.entities.values.forEach(e=>{if(e.point)e.point.color=new ConstantProperty(Color.ORANGE);if(e.point)e.point.pixelSize=new ConstantProperty(8);});
+
+function cameraBbox(): string {
+  const rect = viewer.camera.computeViewRectangle(viewer.scene.globe.ellipsoid);
+  if (!rect) return "";
+  const deg = (x: number) => x * 180 / Math.PI;
+  const west = deg(rect.west);
+  const east = deg(rect.east);
+  const south = deg(rect.south);
+  const north = deg(rect.north);
+  return [Math.max(-180, west), Math.max(-90, south), Math.min(180, east), Math.min(90, north)].join(",");
+}
+
+async function requestJson(path: string): Promise<any> {
+  const response = await fetch(`${API}${path}`, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  const raw = await response.text();
+  let payload: any = {};
+  try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { detail: raw.slice(0, 200) }; }
+  if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+  return payload;
+}
+
+async function checkHealth(): Promise<boolean> {
+  try {
+    const health = await requestJson("/health");
+    runtimeReady = health.status === "ok" && health.ready !== false;
+    if (runtimeReady) {
+      setStatus("ANALYST READY", "ready");
+      emptyEl.classList.add("hidden");
+      return true;
+    }
+    setStatus("ANALYST DEGRADED", "warn");
+    emptyEl.classList.remove("hidden");
+    emptyEl.querySelector("h1")!.textContent = "Runtime dependency not ready";
+    emptyEl.querySelector("p")!.textContent = "The process is reachable, but authoritative analyst dependencies are unavailable. No synthetic intelligence is displayed.";
+    return false;
+  } catch (error) {
+    runtimeReady = false;
+    setStatus("ANALYST UNREACHABLE", "error");
+    emptyEl.classList.remove("hidden");
+    emptyEl.querySelector("h1")!.textContent = "Analyst API unreachable";
+    emptyEl.querySelector("p")!.textContent = escapeHtml(error instanceof Error ? error.message : error);
+    return false;
+  }
+}
+
+function styleFeatures(data: any): void {
+  const sourceNames = new Set<string>();
+  let evidenceRefs = 0;
+  let confidenceSum = 0;
+  let confidenceN = 0;
+  for (const feature of data.features || []) {
+    const props = feature.properties || {};
+    const refs = Array.isArray(props.evidence_refs) ? props.evidence_refs : [];
+    evidenceRefs += refs.length;
+    for (const ref of refs) if (String(ref).includes(":")) sourceNames.add(String(ref).split(":", 1)[0]);
+    if (typeof props.confidence === "number") {
+      confidenceSum += props.confidence;
+      confidenceN += 1;
+    }
+  }
+  setMetric(featureCount, data.count ?? data.features?.length ?? 0);
+  setMetric(sourceCount, sourceNames.size || "—");
+  setMetric(evidenceCount, evidenceRefs || "—");
+  setMetric(confidenceEl, confidenceN ? confidenceLabel(confidenceSum / confidenceN) : "—");
+}
+
+async function refreshMap(): Promise<void> {
+  const id = ++requestSeq;
+  if (!runtimeReady && !(await checkHealth())) return;
+  const bbox = cameraBbox();
+  if (!bbox) return;
+  try {
+    const data = await requestJson(`/spatial?bbox=${encodeURIComponent(bbox)}&limit=1000`);
+    if (id !== requestSeq) return;
+    lastFeatures = data.features || [];
+    const old = dataSources.get("analyst");
+    if (old) viewer.dataSources.remove(old, true);
+    const ds = await GeoJsonDataSource.load(data, { clampToGround: false });
+    ds.name = "analyst";
+    ds.entities.values.forEach((entity: Entity) => {
+      if (entity.point) {
+        entity.point.color = new ConstantProperty(Color.fromCssColorString("#48d6b0"));
+        entity.point.pixelSize = new ConstantProperty(7);
+        entity.point.outlineColor = new ConstantProperty(Color.fromCssColorString("#0b141b"));
+        entity.point.outlineWidth = new ConstantProperty(2);
+      }
+      if (entity.label) entity.label.show = new ConstantProperty(true);
+    });
+    dataSources.set("analyst", ds);
     await viewer.dataSources.add(ds);
-    status.textContent=`${data.count} FEATURES`;
-  }catch(e){status.textContent="ANALYST OFFLINE"; results.textContent=String(e);}
+    styleFeatures(data);
+    emptyEl.classList.toggle("hidden", (data.count ?? 0) > 0);
+    if (!data.count) {
+      emptyEl.querySelector("h1")!.textContent = "No features in current view";
+      emptyEl.querySelector("p")!.textContent = "The world-state query returned no authoritative features for this viewport and time.";
+    }
+    setStatus(`${data.count ?? 0} FEATURES • READY`, "ready");
+    $("#last-refresh").textContent = `REFRESHED ${new Date().toISOString().replace(".000Z", "Z")}`;
+  } catch (error) {
+    setStatus("ANALYST QUERY FAILED", "error");
+    emptyEl.classList.remove("hidden");
+    emptyEl.querySelector("h1")!.textContent = "Intelligence query failed";
+    emptyEl.querySelector("p")!.textContent = escapeHtml(error instanceof Error ? error.message : error);
+  }
 }
-let timer:number|undefined;
-viewer.camera.changed.addEventListener(()=>{window.clearTimeout(timer);timer=window.setTimeout(refreshMap,500)});
-document.querySelector("#timeline")!.addEventListener("click",async()=>{
-  const entity=(document.querySelector<HTMLInputElement>("#entity")!).value.trim();
-  if(!entity){results.textContent="Enter an entity ID.";return;}
-  const start=new Date(Date.now()-7*86400000).toISOString(), end=new Date().toISOString();
-  try{
-    const r=await fetch(`${API}/timeline/${encodeURIComponent(entity)}?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`);
-    const data=await r.json(); if(!r.ok) throw new Error(data.detail||`HTTP ${r.status}`);
-    results.innerHTML=data.changes.length?data.changes.map((c:any)=>
-      `<article><b>${c.from_state_id||"initial"} → ${c.to_state_id}</b><small>${c.valid_from||""}</small><div>${c.changed_properties.join(", ")||"no property change"}</div><code>${c.evidence_refs.join(", ")}</code></article>`).join(""):"No changes in requested window.";
-  }catch(e){results.textContent=String(e);}
+
+function showState(state: any): void {
+  $("#inspector-title").textContent = state.entity_id || "Selected entity";
+  $("#record-state").textContent = state.entity_type || "ENTITY";
+  $("#world-state").textContent = state.state_id || "—";
+  $("#observed-at").textContent = formatTime(state.observed_at);
+  $("#valid-from").textContent = formatTime(state.valid_from);
+  $("#entity-confidence").textContent = confidenceLabel(state.confidence);
+  $("#properties").textContent = JSON.stringify(state.properties || {}, null, 2);
+  const refs = Array.isArray(state.evidence_refs) ? state.evidence_refs : [];
+  $("#evidence-list").innerHTML = refs.length
+    ? refs.map((ref: string) => `<div class="evidence-item"><span class="evidence-dot"></span><code>${escapeHtml(ref)}</code></div>`).join("")
+    : '<span class="muted">No evidence references attached to this state.</span>';
+}
+
+async function inspectEntity(entityId = entityInput.value.trim()): Promise<void> {
+  if (!entityId) {
+    resultsEl.innerHTML = '<span class="muted">Enter an entity ID to inspect authoritative state.</span>';
+    return;
+  }
+  try {
+    const data = await requestJson(`/snapshot?entity_ids=${encodeURIComponent(entityId)}&at=${encodeURIComponent(new Date().toISOString())}`);
+    if (!data.states?.length) {
+      $("#record-state").textContent = "NOT FOUND";
+      $("#inspector-title").textContent = entityId;
+      resultsEl.innerHTML = '<span class="muted">No authoritative state exists for this entity at the requested time.</span>';
+      return;
+    }
+    showState(data.states[0]);
+    const summary = data.evidence || {};
+    setMetric(sourceCount, summary.sources?.length || "—");
+    setMetric(evidenceCount, summary.refs?.length || "—");
+    setMetric(confidenceEl, confidenceLabel(data.states[0].confidence));
+  } catch (error) {
+    resultsEl.innerHTML = `<span class="error-text">${escapeHtml(error instanceof Error ? error.message : error)}</span>`;
+  }
+}
+
+async function loadTimeline(days: number): Promise<void> {
+  const entityId = entityInput.value.trim();
+  if (!entityId) {
+    resultsEl.innerHTML = '<span class="muted">Enter an entity ID first.</span>';
+    return;
+  }
+  const end = new Date();
+  const start = new Date(end.getTime() - days * 86400000);
+  try {
+    const data = await requestJson(`/timeline/${encodeURIComponent(entityId)}?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`);
+    const changes = data.changes || [];
+    resultsEl.innerHTML = changes.length
+      ? changes.map((change: any) => `
+        <article class="timeline-item">
+          <div class="timeline-date">${escapeHtml(formatTime(change.valid_from))}</div>
+          <strong>${escapeHtml(change.from_state_id || "initial")} → ${escapeHtml(change.to_state_id)}</strong>
+          <span>${escapeHtml((change.changed_properties || []).join(" • ") || "state transition")}</span>
+          <code>${escapeHtml((change.evidence_refs || []).join(", ") || "no evidence refs")}</code>
+        </article>`).join("")
+      : '<span class="muted">No state transitions in the requested window.</span>';
+  } catch (error) {
+    resultsEl.innerHTML = `<span class="error-text">${escapeHtml(error instanceof Error ? error.message : error)}</span>`;
+  }
+}
+
+function selectEntityFromGlobe(entity: Entity | undefined): void {
+  if (!entity) return;
+  const id = entity.properties?.entity_id?.getValue?.() || entity.properties?.entityId?.getValue?.() || entity.id;
+  if (!id) return;
+  entityInput.value = String(id);
+  inspectEntity(String(id));
+}
+
+const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+handler.setInputAction((movement: any) => {
+  const picked = viewer.scene.pick(movement.position);
+  const entity = picked?.id as Entity | undefined;
+  selectEntityFromGlobe(entity);
+}, ScreenSpaceEventType.LEFT_CLICK);
+
+$("#inspect").addEventListener("click", () => void inspectEntity());
+entityInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") void inspectEntity();
 });
-document.querySelector("#clear")!.addEventListener("click",()=>{results.textContent="Move the globe or query an entity.";});
-refreshMap();
+$("#timeline").addEventListener("click", () => void loadTimeline(7));
+$("#timeline-30").addEventListener("click", () => void loadTimeline(30));
+$("#refresh").addEventListener("click", () => void refreshMap());
+$("#layer-entities").addEventListener("change", setLayerVisibility);
+$("#layer-evidence").addEventListener("change", setLayerVisibility);
+$("#layer-labels").addEventListener("change", setLayerVisibility);
+
+$("#global-view").addEventListener("click", () => {
+  viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(78, 23, 9000000), duration: 0.8 });
+});
+$("#india-view").addEventListener("click", () => {
+  viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(78.96, 20.59, 2600000), duration: 0.8 });
+});
+$("#reset-view").addEventListener("click", () => viewer.camera.setView({ destination: Cartesian3.fromDegrees(78, 23, 9000000) }));
+
+let cameraTimer: number | undefined;
+viewer.camera.changed.addEventListener(() => {
+  window.clearTimeout(cameraTimer);
+  cameraTimer = window.setTimeout(() => void refreshMap(), 650);
+});
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "/" && document.activeElement !== entityInput) {
+    event.preventDefault();
+    entityInput.focus();
+  }
+});
+
+void checkHealth().then((ready) => {
+  if (ready) void refreshMap();
+});
