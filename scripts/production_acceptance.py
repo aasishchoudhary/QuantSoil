@@ -25,8 +25,10 @@ REQUIRED = [
     "k8s/network-policy.yaml",
     "k8s/runtime.yaml",
     "k8s/web.yaml",
+    "k8s/pdb.yaml",
     "scripts/backup_postgres.sh",
     "scripts/restore_postgres.sh",
+    "scripts/production_cluster_acceptance.sh",
 ]
 
 
@@ -98,7 +100,7 @@ def main() -> int:
         if "type: RuntimeDefault" not in manifest:
             fail(f"{name} workload does not explicitly select RuntimeDefault seccomp")
 
-    for rel in ("scripts/backup_postgres.sh", "scripts/restore_postgres.sh"):
+    for rel in ("scripts/backup_postgres.sh", "scripts/restore_postgres.sh", "scripts/production_cluster_acceptance.sh"):
         result = subprocess.run(["bash", "-n", str(ROOT / rel)], capture_output=True, text=True)
         if result.returncode:
             fail(f"{rel} has shell syntax errors: {result.stderr.strip()}")
