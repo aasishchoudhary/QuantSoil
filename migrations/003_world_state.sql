@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS entity_state (
-    state_id UUID PRIMARY KEY,
+    state_id TEXT PRIMARY KEY,
     entity_id TEXT NOT NULL,
     entity_type TEXT NOT NULL,
     valid_from TIMESTAMPTZ NOT NULL,
