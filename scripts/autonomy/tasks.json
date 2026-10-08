@@ -1,15 +1,10 @@
 {
-  "version": 7,
+  "version": 8,
   "tasks": [
-    {
-      "id": "predictive-intelligence",
-      "priority": 60,
-      "goal": "Operationalize evidence-backed probabilistic forecasts, calibration, proper scoring, outcome linkage, and model evaluation without promoting predictions into authoritative state."
-    },
     {
       "id": "production-security-scale",
       "priority": 70,
-      "goal": "Complete gateway authorization, rate limiting, audit persistence, vector-tile scale testing, backup restore drills, and performance acceptance for production."
+      "goal": "Complete environment-specific production acceptance: deploy an identity-aware OAuth/OIDC gateway with rate limiting and direct-backend network isolation; execute an isolated PostgreSQL backup/restore drill; and run measured map/query performance acceptance at production scale."
     }
   ]
 }
