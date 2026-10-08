@@ -1,0 +1,3 @@
+## Observation to Evidence Bridge
+
+The deterministic bridge converts a validated source observation into the immutable evidence ledger contract. It rejects payload-hash mismatch, derives a stable UUIDv5 identity from source, source-record identity, and content hash, preserves temporal and parser provenance, requires explicit schema and licensing metadata, and returns an explicit link for downstream derived state. The payload is copied at the boundary. No database or external provider is required.
