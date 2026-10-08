@@ -1,24 +1,28 @@
 """Live public-data gateway for God's Eye View.
 
-This surface is intentionally separate from authoritative world-state storage:
-third-party live feeds are volatile, may be delayed, and are never promoted to
-truth without the normal evidence/ingestion boundary.
+Live feeds are volatile observations. They are never promoted to authoritative
+world state without the normal evidence/ingestion boundary.
 """
 from __future__ import annotations
 
+import csv
 from datetime import datetime, timezone
-from functools import lru_cache
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from io import StringIO
 import json
 import os
+import threading
 import time
 from typing import Any
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 from fastapi import FastAPI, HTTPException, Query
 
-UA = "QuantSoil-GodsEye/0.2 (+public-data; evidence-first)"
+UA = "QuantSoil-GodsEye/0.3 (+public-data; evidence-first)"
 CACHE: dict[str, tuple[float, Any]] = {}
+AIS_CACHE: dict[str, dict[str, Any]] = {}
+AIS_LOCK = threading.Lock()
+AIS_THREAD_STARTED = False
 
 
 def _get_json(url: str, *, ttl: int = 10) -> Any:
@@ -40,6 +44,26 @@ def _get_json(url: str, *, ttl: int = 10) -> Any:
     return payload
 
 
+def _get_text(url: str, *, ttl: int = 60) -> str:
+    now = time.monotonic()
+    cache_key = "__text__" + url
+    cached = CACHE.get(cache_key)
+    if cached and now - cached[0] < ttl:
+        return str(cached[1])
+    req = Request(url, headers={"User-Agent": UA, "Accept": "text/csv,text/plain"})
+    try:
+        with urlopen(req, timeout=30) as response:
+            if response.status != 200:
+                raise HTTPException(502, f"provider returned HTTP {response.status}")
+            payload = response.read().decode("utf-8")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(502, f"provider unavailable: {type(exc).__name__}") from exc
+    CACHE[cache_key] = (now, payload)
+    return payload
+
+
 def _bbox(value: str) -> tuple[float, float, float, float]:
     try:
         parts = tuple(float(x.strip()) for x in value.split(","))
@@ -54,7 +78,6 @@ def _bbox(value: str) -> tuple[float, float, float, float]:
 
 
 def _aircraft_feature(state: list[Any], source: str) -> dict[str, Any] | None:
-    # OpenSky state vector schema, documented by the provider.
     if len(state) < 8 or state[5] is None or state[6] is None:
         return None
     return {
@@ -76,8 +99,75 @@ def _aircraft_feature(state: list[Any], source: str) -> dict[str, Any] | None:
     }
 
 
+def _ais_loop() -> None:
+    key = os.getenv("AISSTREAM_API_KEY", "").strip()
+    if not key:
+        return
+    try:
+        from websockets.sync.client import connect
+    except Exception:
+        return
+    while True:
+        try:
+            with connect(
+                "wss://stream.aisstream.io/v0/stream",
+                compression="deflate",
+                open_timeout=10,
+            ) as socket:
+                socket.send(json.dumps({
+                    "APIKey": key,
+                    "BoundingBoxes": [[[-90, -180], [90, 180]]],
+                    "FilterMessageTypes": [
+                        "PositionReport",
+                        "StandardClassBPositionReport",
+                    ],
+                }))
+                for raw in socket:
+                    message = json.loads(raw)
+                    report = (
+                        message.get("Message", {}).get("PositionReport")
+                        or message.get("Message", {}).get("StandardClassBPositionReport")
+                    )
+                    if not report:
+                        continue
+                    metadata = message.get("MetaData", {})
+                    mmsi = str(metadata.get("MMSI") or report.get("UserID") or "")
+                    lat = report.get("Latitude")
+                    lon = report.get("Longitude")
+                    if not mmsi or lat is None or lon is None:
+                        continue
+                    with AIS_LOCK:
+                        AIS_CACHE[mmsi] = {
+                            "mmsi": mmsi,
+                            "latitude": lat,
+                            "longitude": lon,
+                            "sog_knots": report.get("Sog"),
+                            "cog_deg": report.get("Cog"),
+                            "heading_deg": report.get("TrueHeading"),
+                            "observed_at": datetime.now(timezone.utc).isoformat(),
+                            "source": "aisstream",
+                        }
+                        if len(AIS_CACHE) > 10000:
+                            oldest = sorted(
+                                AIS_CACHE,
+                                key=lambda k: AIS_CACHE[k].get("observed_at", ""),
+                            )[:1000]
+                            for item in oldest:
+                                AIS_CACHE.pop(item, None)
+        except Exception:
+            time.sleep(5)
+
+
+def _start_ais_thread() -> None:
+    global AIS_THREAD_STARTED
+    if AIS_THREAD_STARTED or not os.getenv("AISSTREAM_API_KEY", "").strip():
+        return
+    AIS_THREAD_STARTED = True
+    threading.Thread(target=_ais_loop, name="aisstream-live", daemon=True).start()
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="QuantSoil — God's Eye View Live Gateway", version="0.2.0")
+    app = FastAPI(title="QuantSoil — God's Eye View Live Gateway", version="0.3.0")
 
     @app.get("/status")
     def status() -> dict[str, Any]:
@@ -93,6 +183,21 @@ def create_app() -> FastAPI:
                 "fires_nasa_firms": {"enabled": bool(os.getenv("NASA_FIRMS_MAP_KEY")), "auth": "map_key"},
                 "voice_openai_realtime": {"enabled": bool(os.getenv("OPENAI_API_KEY")), "auth": "api_key"},
                 "google_photorealistic_3d": {"enabled": bool(os.getenv("GOOGLE_MAPS_API_KEY")), "auth": "api_key"},
+                "traffic": {
+                    "enabled": False,
+                    "auth": "provider_specific",
+                    "reason": "No universal keyless global live-traffic API",
+                },
+                "public_cameras": {
+                    "enabled": False,
+                    "auth": "provider_specific",
+                    "reason": "No universal global public-camera catalog",
+                },
+                "world_radio": {
+                    "enabled": False,
+                    "auth": "provider_specific",
+                    "reason": "Requires a station/catalog provider",
+                },
             },
         }
 
@@ -100,14 +205,14 @@ def create_app() -> FastAPI:
     def catalog() -> dict[str, Any]:
         return {
             "name": "God's Eye View",
-            "version": "0.2.0",
+            "version": "0.3.0",
             "modules": [
-                {"id": "geolens", "name": "GeoLens", "role": "spatial catalog / datasets"},
-                {"id": "world-monitor", "name": "World Monitor", "role": "global event and news context"},
-                {"id": "iron-sight", "name": "Iron Sight", "role": "conflict-monitoring workspace"},
-                {"id": "pythia", "name": "Pythia", "role": "forecast / scenario workspace"},
-                {"id": "wanderer", "name": "Wanderer", "role": "trail / route workspace"},
-                {"id": "open-meteo", "name": "Open-Meteo", "role": "weather / marine / air-quality context"},
+                {"id": "geolens", "name": "GeoLens", "role": "spatial catalog / datasets", "state": "integrated-interface"},
+                {"id": "world-monitor", "name": "World Monitor", "role": "global event context", "state": "integrated-interface"},
+                {"id": "iron-sight", "name": "Iron Sight", "role": "conflict-monitoring workspace", "state": "integrated-interface"},
+                {"id": "pythia", "name": "Pythia", "role": "forecast / scenario workspace", "state": "integrated-interface"},
+                {"id": "wanderer", "name": "Wanderer", "role": "route / temporal movement workspace", "state": "integrated-interface"},
+                {"id": "open-meteo", "name": "Open-Meteo", "role": "weather / marine / air-quality context", "state": "live"},
             ],
             "governance": {
                 "named_person_search": False,
@@ -124,7 +229,9 @@ def create_app() -> FastAPI:
     ) -> dict[str, Any]:
         west, south, east, north = _bbox(bbox)
         if provider == "opensky":
-            query = urlencode({"lomin": west, "lamin": south, "lomax": east, "lamax": north, "extended": 1})
+            query = urlencode({
+                "lomin": west, "lamin": south, "lomax": east, "lamax": north, "extended": 1,
+            })
             payload = _get_json(f"https://opensky-network.org/api/states/all?{query}", ttl=10)
             features = [
                 feature
@@ -134,7 +241,9 @@ def create_app() -> FastAPI:
             return {
                 "type": "FeatureCollection",
                 "source": "opensky",
-                "observed_at": datetime.fromtimestamp(payload.get("time", time.time()), tz=timezone.utc).isoformat(),
+                "observed_at": datetime.fromtimestamp(
+                    payload.get("time", time.time()), tz=timezone.utc
+                ).isoformat(),
                 "count": len(features),
                 "features": features,
             }
@@ -180,7 +289,8 @@ def create_app() -> FastAPI:
             "longitude": lon,
             "current": "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m",
             "hourly": "temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m",
-            "forecast_days": 2,
+            "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max",
+            "forecast_days": 3,
             "timezone": "UTC",
         })
         return {
@@ -206,13 +316,55 @@ def create_app() -> FastAPI:
             "retrieved_at": datetime.now(timezone.utc).isoformat(),
             "count": min(len(rows), limit),
             "objects": rows[:limit],
-            "note": "CelesTrak JSON/OMM is preferred for current catalogs; legacy TLE cannot represent 6-digit catalog numbers.",
+        }
+
+    @app.get("/fires")
+    def fires(
+        source: str = Query(default="VIIRS_NOAA21_NRT"),
+        bbox: str = Query(default="-180,-90,180,90"),
+        days: int = Query(default=1, ge=1, le=5),
+    ) -> dict[str, Any]:
+        key = os.getenv("NASA_FIRMS_MAP_KEY", "").strip()
+        if not key:
+            raise HTTPException(503, "NASA FIRMS requires NASA_FIRMS_MAP_KEY")
+        west, south, east, north = _bbox(bbox)
+        url = (
+            f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/"
+            f"{key}/{source}/{west},{south},{east},{north}/{days}"
+        )
+        rows = list(csv.DictReader(StringIO(_get_text(url, ttl=300))))
+        features = []
+        for row in rows:
+            try:
+                lon = float(row["longitude"])
+                lat = float(row["latitude"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            features.append({
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                "properties": row,
+            })
+        return {
+            "source": "nasa-firms",
+            "sensor": source,
+            "retrieved_at": datetime.now(timezone.utc).isoformat(),
+            "count": len(features),
+            "features": features,
         }
 
     @app.get("/ships")
     def ships() -> dict[str, Any]:
-        if not os.getenv("AISSTREAM_API_KEY"):
-            raise HTTPException(503, "AISStream is optional and requires AISSTREAM_API_KEY")
-        raise HTTPException(501, "AISStream websocket ingestion is not enabled in this build yet")
+        _start_ais_thread()
+        if not os.getenv("AISSTREAM_API_KEY", "").strip():
+            raise HTTPException(503, "AISStream requires AISSTREAM_API_KEY")
+        with AIS_LOCK:
+            objects = list(AIS_CACHE.values())
+        return {
+            "source": "aisstream",
+            "retrieved_at": datetime.now(timezone.utc).isoformat(),
+            "count": len(objects),
+            "ships": objects,
+        }
 
     return app
