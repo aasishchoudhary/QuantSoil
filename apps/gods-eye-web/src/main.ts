@@ -999,13 +999,7 @@ window.setInterval(() => {
 window.setInterval(() => {
   if (runtimeReady && ($("#layer-satellites") as HTMLInputElement).checked) void refreshSatellites();
 }, SATELLITE_REFRESH_MS);
-$("#layer-weather").addEventListener("change", async () => {
-  if (!(($("#layer-weather") as HTMLInputElement).checked)) return;
-  const data = await requestJson("/v1/live/weather?lat=23.3441&lon=85.3096");
-  $("#inspector-title").textContent = "Open-Meteo weather";
-  $("#properties").textContent = JSON.stringify(data.data?.current || data.data || {}, null, 2);
-  setStatus("OPEN-METEO READY", "ready");
-});
+// Weather toggle is handled by refreshLiveLayers(), which queries the current map centre.
 $("#flir-toggle").addEventListener("click", () => document.querySelector(".map-stage")?.classList.toggle("flir-mode"));
 $("#google-3d").addEventListener("click", async () => {
   const key = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "").trim();
