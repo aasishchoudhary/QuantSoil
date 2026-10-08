@@ -58,8 +58,10 @@ def test_analyst_queries_use_migrated_world_state_and_postgis(db):
     snapshot=service.snapshot(("analyst-integration",),at=T)
     timeline=service.timeline("analyst-integration",start=T,end=T+timedelta(hours=2))
     spatial=service.spatial((0,0,3,3),at=T)
+    tile=PostgresMapRepository(db).tile(2,2,1,at=T)
 
     assert snapshot.states[0].properties["status"]=="open"
     assert timeline.changes[-1].changed_properties==("status",)
     assert len(spatial.features)==1
     assert spatial.features[0].source=="usgs"
+    assert isinstance(tile, bytes)
