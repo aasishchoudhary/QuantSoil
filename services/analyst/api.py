@@ -11,9 +11,40 @@ from collections import OrderedDict, deque
 from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
+from fastapi import status
 from services.analyst.query import AnalystQueryError, AnalystService
 
 _LOG = logging.getLogger("gods_eye.analyst")
+
+class AnalystUnavailableError(RuntimeError):
+    """Raised when authoritative analyst dependencies are not available."""
+
+
+def create_unavailable_app(reason: str = "runtime dependencies are not ready") -> FastAPI:
+    """Keep the public analyst contract mounted during dependency degradation.
+
+    A live process must not turn an expected API into HTTP 404 simply because
+    PostgreSQL/S3 initialization failed. The degraded surface returns explicit
+    503 responses and never exposes internal exception details.
+    """
+    app = FastAPI(title="God's Eye World Intelligence — Analyst API", version="0.1.0")
+
+    @app.get("/health")
+    def health() -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"status": "degraded", "ready": False, "detail": reason},
+        )
+
+    @app.api_route("/{path:path}", methods=["GET", "HEAD", "OPTIONS"])
+    def unavailable(path: str) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": reason, "path": f"/{path}"},
+        )
+
+    return app
+
 
 def create_app(service: AnalystService, audit_store=None) -> FastAPI:
     app = FastAPI(title="God's Eye World Intelligence — Analyst API", version="0.1.0")
@@ -98,6 +129,10 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
         try:
             result = service.snapshot(tuple(x.strip() for x in entity_ids.split(",") if x.strip()), at=at)
             summary = service.evidence_summary(result.states)
+        except AnalystUnavailableError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        except AnalystUnavailableError as exc:
+            raise HTTPException(503, str(exc)) from exc
         except AnalystQueryError as exc:
             raise HTTPException(400, str(exc)) from exc
         return {
@@ -121,6 +156,8 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
         try:
             parts = tuple(float(x.strip()) for x in bbox.split(","))
             result = service.spatial(parts, at=at, limit=limit)
+        except AnalystUnavailableError as exc:
+            raise HTTPException(503, str(exc)) from exc
         except (ValueError, AnalystQueryError) as exc:
             raise HTTPException(400, str(exc)) from exc
         return {
