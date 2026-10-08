@@ -31,3 +31,14 @@ def test_runner_reports_source_failure_without_fabricating_records():
     assert run.records_seen == 0
     assert run.records_accepted == 0
     assert run.error.startswith("TimeoutError:")
+
+def test_runner_exposes_audit_summary_and_rejection():
+    registry = SourceRegistry()
+    registry.register(SourceSpec("stale", "synthetic", "v1", "parser-v1", 1))
+    connector = FakeConnector()
+    connector.spec = registry.get("stale")
+    run = ConnectorRunner(registry, ObservationIngestor()).run(connector, now=T.replace(hour=1))
+    assert run.records_seen == 1
+    assert run.records_rejected == 1
+    assert run.records_accepted == 0
+    assert run.error is None
