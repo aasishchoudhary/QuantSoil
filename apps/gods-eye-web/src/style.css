@@ -318,3 +318,34 @@ body.compact-operator .osm-attribution{
   body.compact-operator .map-empty h1{font-size:14px}
   body.compact-operator .map-empty p{font-size:9px}
 }
+
+
+/* Portrait operator acceptance: keep the empty-state diagnostic compact and
+   out of the map centre so it cannot visually mask aircraft or trails. */
+@media (max-width: 520px) {
+  .map-empty,
+  body.compact-operator .map-empty {
+    left: 10px;
+    right: 10px;
+    top: auto;
+    bottom: 48px;
+    transform: none;
+    width: auto;
+    max-width: none;
+    padding: 10px 12px;
+    text-align: left;
+    pointer-events: none;
+    backdrop-filter: blur(5px);
+  }
+  .map-empty h1,
+  body.compact-operator .map-empty h1 {
+    margin: 5px 0 3px;
+    font-size: 12px;
+  }
+  .map-empty p,
+  body.compact-operator .map-empty p {
+    font-size: 9px;
+    line-height: 1.45;
+  }
+  .map-empty .empty-kicker { font-size: 7px; }
+}
