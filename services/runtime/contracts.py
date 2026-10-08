@@ -93,7 +93,11 @@ class InMemoryJobQueue:
     def claim(self, *, now: datetime, lease: timedelta) -> RuntimeJob | None:
         candidates = sorted(self._jobs.values(), key=lambda j: (j.scheduled_at,j.job_id))
         for job in candidates:
-            if job.status not in {JobStatus.QUEUED, JobStatus.RETRY} or job.scheduled_at > now:
+            if job.scheduled_at > now:
+                continue
+            if job.status is JobStatus.RUNNING and (job.lease_until is None or job.lease_until > now):
+                continue
+            if job.status not in {JobStatus.QUEUED, JobStatus.RETRY, JobStatus.RUNNING}:
                 continue
             claimed = job.lease(now=now,duration=lease)
             self._jobs[job.job_id] = claimed
