@@ -56,6 +56,8 @@ app.innerHTML = `
         <label class="toggle"><input id="layer-aircraft" type="checkbox"/><span></span><em>AIRCRAFT / OPENSKY</em></label>
         <label class="toggle"><input id="layer-satellites" type="checkbox"/><span></span><em>SATELLITES / CELESTRAK</em></label>
         <label class="toggle"><input id="layer-earthquakes" type="checkbox"/><span></span><em>EARTHQUAKES / USGS</em></label>
+        <label class="toggle"><input id="layer-fires" type="checkbox"/><span></span><em>WILDFIRE / NASA FIRMS</em></label>
+        <label class="toggle"><input id="layer-ships" type="checkbox"/><span></span><em>SHIPS / AISSTREAM</em></label>
         <label class="toggle"><input id="layer-weather" type="checkbox"/><span></span><em>WEATHER / OPEN-METEO</em></label>
         <label class="toggle"><input id="layer-labels" type="checkbox" checked/><span></span><em>MAP LABELS</em></label>
       </section>
@@ -242,6 +244,30 @@ async function refreshEarthquakes(): Promise<void> {
   await addLiveGeoJson("earthquakes", "/v1/live/earthquakes?feed=all_day", "title");
 }
 
+async function refreshFires(): Promise<void> {
+  await addLiveGeoJson("fires", "/v1/live/fires?bbox=" + encodeURIComponent(cameraBbox()) + "&days=1");
+}
+
+async function refreshShips(): Promise<void> {
+  const payload = await requestJson("/v1/live/ships");
+  const features = (payload.ships || []).map((ship: any) => ({
+    type: "Feature",
+    geometry: { type: "Point", coordinates: [ship.longitude, ship.latitude] },
+    properties: ship,
+  }));
+  removeLiveLayer("ships");
+  const ds = await GeoJsonDataSource.load({ type: "FeatureCollection", features }, { clampToGround: false });
+  ds.name = "ships";
+  ds.entities.values.forEach((entity: Entity) => {
+    if (entity.point) {
+      entity.point.color = new ConstantProperty(Color.fromCssColorString("#55b7ff"));
+      entity.point.pixelSize = new ConstantProperty(6);
+    }
+  });
+  liveSources.set("ships", ds);
+  await viewer.dataSources.add(ds);
+}
+
 async function refreshSatellites(): Promise<void> {
   const payload = await requestJson("/v1/live/satellites?group=active&limit=1000");
   removeLiveLayer("satellites");
@@ -283,11 +309,15 @@ async function refreshLiveLayers(): Promise<void> {
   const aircraftOn = ($("#layer-aircraft") as HTMLInputElement).checked;
   const satellitesOn = ($("#layer-satellites") as HTMLInputElement).checked;
   const earthquakesOn = ($("#layer-earthquakes") as HTMLInputElement).checked;
+  const firesOn = ($("#layer-fires") as HTMLInputElement).checked;
+  const shipsOn = ($("#layer-ships") as HTMLInputElement).checked;
   try {
     if (aircraftOn) await refreshAircraft(); else removeLiveLayer("aircraft");
     if (satellitesOn) await refreshSatellites(); else removeLiveLayer("satellites");
     if (earthquakesOn) await refreshEarthquakes(); else removeLiveLayer("earthquakes");
-    if (aircraftOn || satellitesOn || earthquakesOn) setStatus("LIVE WORLD FEEDS", "ready");
+    if (firesOn) await refreshFires(); else removeLiveLayer("fires");
+    if (shipsOn) await refreshShips(); else removeLiveLayer("ships");
+    if (aircraftOn || satellitesOn || earthquakesOn || firesOn || shipsOn) setStatus("LIVE WORLD FEEDS", "ready");
   } catch (error) {
     setStatus("LIVE FEED DEGRADED", "warn");
     console.warn(error);
@@ -489,11 +519,12 @@ $("#timeline-30").addEventListener("click", () => void loadTimeline(30));
 $("#refresh").addEventListener("click", () => void refreshMap());
 analysisTimeInput.addEventListener("change", () => void refreshMap());
 $("#layer-entities").addEventListener("change", setLayerVisibility);
-$("#layer-evidence").addEventListener("change", setLayerVisibility);
 $("#layer-labels").addEventListener("change", setLayerVisibility);
 $("#layer-aircraft").addEventListener("change", () => void refreshLiveLayers());
 $("#layer-satellites").addEventListener("change", () => void refreshLiveLayers());
 $("#layer-earthquakes").addEventListener("change", () => void refreshLiveLayers());
+$("#layer-fires").addEventListener("change", () => void refreshLiveLayers());
+$("#layer-ships").addEventListener("change", () => void refreshLiveLayers());
 $("#layer-weather").addEventListener("change", async () => {
   if (!(($("#layer-weather") as HTMLInputElement).checked)) return;
   const data = await requestJson("/v1/live/weather?lat=23.3441&lon=85.3096");
