@@ -8,7 +8,7 @@ from packages.repositories.world_state_memory import WorldStateReplayRepository
 T = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 def state(i, start, end=None, **props):
-    return EntityState(i, "e-1", "aircraft", start, end, start, start, props or {"status":"active"}, None, None, ("ev-"+i,))
+    return EntityState(state_id=i, entity_id="e-1", entity_type="aircraft", valid_from=start, valid_to=end, observed_at=start, recorded_at=start, properties=props or {"status":"active"}, evidence_refs=("ev-"+i,))
 
 def test_ontology_requires_supported_types_and_evidence():
     with pytest.raises(OntologyError): OntologyEntity("e-1", "unknown", ("ev-1",))
