@@ -6,6 +6,8 @@ import hmac
 import json
 import logging
 import os
+import time
+from collections import defaultdict, deque
 from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -16,11 +18,23 @@ _LOG = logging.getLogger("gods_eye.analyst")
 def create_app(service: AnalystService, audit_store=None) -> FastAPI:
     app = FastAPI(title="God's Eye World Intelligence — Analyst API", version="0.1.0")
 
+    rate_limit = defaultdict(deque)
+    rate_limit_per_minute = int(os.getenv("ANALYST_RATE_LIMIT_PER_MINUTE", "120"))
+
     @app.middleware("http")
     async def security_and_audit(request, call_next):
         correlation = request.headers.get("X-Correlation-ID") or hashlib.sha256(
             f"{datetime.now(timezone.utc).isoformat()}:{request.url.path}".encode()
         ).hexdigest()[:24]
+        if request.url.path != "/health":
+            client_key = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown").split(",")[0].strip()
+            now = time.monotonic()
+            bucket = rate_limit[client_key]
+            while bucket and now - bucket[0] >= 60:
+                bucket.popleft()
+            if len(bucket) >= rate_limit_per_minute:
+                return JSONResponse(status_code=429, content={"detail":"rate limit exceeded"}, headers={"Retry-After":"60","X-Correlation-ID":correlation})
+            bucket.append(now)
         if request.url.path != "/health" and os.getenv("ANALYST_AUTH_MODE", "optional").lower() == "required":
             expected = os.getenv("ANALYST_BEARER_TOKEN", "")
             supplied = request.headers.get("Authorization", "")
