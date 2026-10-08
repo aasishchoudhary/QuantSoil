@@ -15,7 +15,7 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 import "./style.css";
 import * as satellite from "satellite.js";
 
-const API = import.meta.env.VITE_ANALYST_API_BASE || "/v1/analyst";
+const API = import.meta.env.VITE_API_BASE || "";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
 app.innerHTML = `
@@ -207,7 +207,15 @@ viewer.camera.setView({ destination: Cartesian3.fromDegrees(78, 23, 9000000) });
 
 function setLayerVisibility(): void {
   const entities = dataSources.get("analyst");
-  if (entities) entities.show = ($("#layer-entities") as HTMLInputElement).checked;
+  if (entities) {
+    entities.show = ($("#layer-entities") as HTMLInputElement).checked;
+  }
+  const labels = ($("#layer-labels") as HTMLInputElement).checked;
+  if (entities) {
+    entities.entities.values.forEach((entity: Entity) => {
+      if (entity.label) entity.label.show = new ConstantProperty(labels);
+    });
+  }
 }
 function removeLiveLayer(name: string): void {
   const ds = liveSources.get(name);
@@ -227,7 +235,7 @@ async function addLiveGeoJson(name: string, url: string, labelField?: string): P
       entity.point.outlineColor = new ConstantProperty(Color.fromCssColorString("#0b141b"));
       entity.point.outlineWidth = new ConstantProperty(2);
     }
-    if (labelField && entity.properties) {
+    if (entity.label) entity.label.show = new ConstantProperty(false);    if (labelField && entity.properties) {
       const value = entity.properties[labelField]?.getValue?.();
       if (value) entity.name = String(value);
     }
@@ -398,7 +406,7 @@ async function refreshMap(): Promise<void> {
   if (!bbox) return;
   try {
     const analysisAt = analysisTimeInput.value ? new Date(`${analysisTimeInput.value}:00Z`).toISOString() : new Date().toISOString();
-    const data = await requestJson(`/spatial?bbox=${encodeURIComponent(bbox)}&at=${encodeURIComponent(analysisAt)}&limit=1000`);
+    const data = await requestJson(`${API}/spatial?bbox=${encodeURIComponent(bbox)}&at=${encodeURIComponent(analysisAt)}&limit=1000`);
     if (id !== requestSeq) return;
     lastFeatures = data.features || [];
     const old = dataSources.get("analyst");
