@@ -7,7 +7,6 @@ from typing import Callable, Protocol
 
 from packages.connectors.contracts import Connector, ConnectorError, ConnectorRun, utc_now
 from packages.evaluation.data_quality import SourceHealth
-from packages.repositories.source_health_postgres import PostgresSourceHealthRepository
 from services.connectors.health import record_failure, record_success
 from services.connectors.retry import RetryPolicy, RetryableConnectorError
 from services.ingestion.observation import ObservationIngestor
