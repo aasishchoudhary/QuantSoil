@@ -43,6 +43,9 @@ jobs:
       - name: Validate Kubernetes manifests
         run: python -c 'import pathlib, yaml; [list(yaml.safe_load_all(p.read_text())) for p in pathlib.Path("k8s").glob("*.yaml")]'
 
+      - name: Run production acceptance gate
+        run: python scripts/production_acceptance.py
+
       - name: Run unit tests
         run: python -m pytest -q
 
