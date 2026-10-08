@@ -1,6 +1,6 @@
 """HTTP API for read-only evidence-first analyst queries."""
 from __future__ import annotations
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from services.analyst.query import AnalystQueryError, AnalystService
@@ -44,7 +44,7 @@ def create_app(service: AnalystService) -> FastAPI:
             raise HTTPException(400, str(exc)) from exc
         return {
             "type": "FeatureCollection",
-            "generated_at": datetime.now().astimezone().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "count": len(result.features),
             "features": [
                 item.to_geojson() if hasattr(item, "to_geojson") else item
