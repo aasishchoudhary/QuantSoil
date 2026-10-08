@@ -14,6 +14,7 @@ from packages.repositories.evidence_payload_s3 import S3EvidencePayloadStore
 from packages.repositories.evidence_postgres import PostgresEvidenceRepository
 from packages.repositories.world_state_postgres import PostgresWorldStateRepository
 from packages.repositories.map_postgres import PostgresMapRepository
+from packages.repositories.analyst_audit_postgres import PostgresAnalystAuditRepository
 from services.analyst.query import AnalystService
 from services.analyst.api import create_app as create_analyst_app
 from services.geospatial.api import create_app as create_map_app
@@ -119,7 +120,7 @@ def create_app() -> FastAPI:
         state["connector_count"] = len(connectors)
         map_repository = PostgresMapRepository(connection)
         analyst_service = AnalystService(PostgresWorldStateRepository(connection), map_repository)
-        app.mount("/v1/analyst", create_analyst_app(analyst_service))
+        app.mount("/v1/analyst", create_analyst_app(analyst_service, PostgresAnalystAuditRepository(connection)))
         app.mount("/v1/map", create_map_app(map_repository))
         state["started"] = True
 
