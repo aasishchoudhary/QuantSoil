@@ -1,0 +1,21 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: world-intelligence-runtime
+  namespace: gods-eye
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: world-intelligence-runtime
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gods-eye-web
+  namespace: gods-eye
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: gods-eye-web
