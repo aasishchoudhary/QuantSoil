@@ -30,6 +30,7 @@ REQUIRED = [
     "scripts/backup_postgres.sh",
     "scripts/restore_postgres.sh",
     "scripts/production_cluster_acceptance.sh",
+    "scripts/termux_first_run.sh",
     "infrastructure/aws/evidence/main.tf",
     "infrastructure/aws/evidence/variables.tf",
     ".github/workflows/ci.yml",
@@ -114,7 +115,7 @@ def main() -> int:
         if "type: RuntimeDefault" not in manifest:
             fail(f"{name} workload does not explicitly select RuntimeDefault seccomp")
 
-    for rel in ("scripts/backup_postgres.sh", "scripts/restore_postgres.sh", "scripts/production_cluster_acceptance.sh"):
+    for rel in ("scripts/backup_postgres.sh", "scripts/restore_postgres.sh", "scripts/production_cluster_acceptance.sh", "scripts/termux_first_run.sh"):
         result = subprocess.run(["bash", "-n", str(ROOT / rel)], capture_output=True, text=True)
         if result.returncode:
             fail(f"{rel} has shell syntax errors: {result.stderr.strip()}")
