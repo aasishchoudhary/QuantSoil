@@ -2,6 +2,7 @@
 from __future__ import annotations
 import os
 import threading
+from contextlib import asynccontextmanager
 from datetime import timedelta, timezone, datetime
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -87,40 +88,28 @@ def build_components():
     return connection, registry, connectors, queue, scheduler, worker
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="God's Eye World Intelligence Runtime", version="0.1.0")
     state = {
         "started": False, "stop": threading.Event(), "thread": None,
         "connection": None, "connector_count": 0,
     }
 
-    @app.get("/health/live")
-    def live():
-        return {"status": "ok"}
-
-    @app.get("/health/ready")
-    def ready():
-        db_ok = check_database(_database_factory) if os.getenv("DATABASE_URL") else False
-        status = HealthStatus(
-            live=True, ready=bool(state["started"] and db_ok),
-            database_ok=db_ok, connector_count=state["connector_count"],
-            detail="ready" if state["started"] and db_ok else "dependency_not_ready",
-        )
-        return JSONResponse(status_code=200 if status.ready else 503, content=status.__dict__)
-
-    @app.on_event("startup")
-    def startup():
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
         try:
             connection, registry, connectors, queue, scheduler, worker = build_components()
         except Exception as exc:
             emit(RuntimeEvent("runtime_start_failed", datetime.now(timezone.utc),
                               error_type=type(exc).__name__))
+            yield
             return
 
         state["connection"] = connection
         state["connector_count"] = len(connectors)
         map_repository = PostgresMapRepository(connection)
         analyst_service = AnalystService(PostgresWorldStateRepository(connection), map_repository)
-        app.mount("/v1/analyst", create_analyst_app(analyst_service, PostgresAnalystAuditRepository(connection)))
+        app.mount("/v1/analyst", create_analyst_app(
+            analyst_service, PostgresAnalystAuditRepository(connection)
+        ))
         app.mount("/v1/map", create_map_app(map_repository))
         state["started"] = True
 
@@ -146,20 +135,41 @@ def create_app() -> FastAPI:
         state["thread"].start()
         emit(RuntimeEvent("runtime_started", datetime.now(timezone.utc)))
 
-    @app.on_event("shutdown")
-    def shutdown():
-        state["stop"].set()
-        thread = state.get("thread")
-        if thread is not None:
-            thread.join(timeout=10)
-        connection = state.get("connection")
-        if connection is not None:
-            try:
-                connection.close()
-            except Exception:
-                pass
-        state["started"] = False
-        emit(RuntimeEvent("runtime_stopped", datetime.now(timezone.utc)))
+        try:
+            yield
+        finally:
+            state["stop"].set()
+            thread = state.get("thread")
+            if thread is not None:
+                thread.join(timeout=10)
+            connection = state.get("connection")
+            if connection is not None:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+            state["started"] = False
+            emit(RuntimeEvent("runtime_stopped", datetime.now(timezone.utc)))
+
+    app = FastAPI(
+        title="God's Eye World Intelligence Runtime",
+        version="0.1.0",
+        lifespan=lifespan,
+    )
+
+    @app.get("/health/live")
+    def live():
+        return {"status": "ok"}
+
+    @app.get("/health/ready")
+    def ready():
+        db_ok = check_database(_database_factory) if os.getenv("DATABASE_URL") else False
+        status = HealthStatus(
+            live=True, ready=bool(state["started"] and db_ok),
+            database_ok=db_ok, connector_count=state["connector_count"],
+            detail="ready" if state["started"] and db_ok else "dependency_not_ready",
+        )
+        return JSONResponse(status_code=200 if status.ready else 503, content=status.__dict__)
 
     return app
 
