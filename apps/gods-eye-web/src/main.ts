@@ -113,7 +113,7 @@ app.innerHTML = `
         <h1>Awaiting authoritative state</h1>
         <p>The globe is live. Intelligence features appear when the governed analyst runtime and its evidence-backed world state are ready.</p>
       </div>
-      <div class="scale"><span>WGS84</span><span>GEOINT VIEW</span></div>
+      <div class="aircraft-legend"><span>✈ AIRCRAFT</span><span>◆ JET</span><span>◉ ROTOR</span></div><div class="osm-attribution">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></div><div class="scale"><span>WGS84</span><span>GEOINT VIEW</span></div>
     </section>
 
     <aside class="right-panel">
