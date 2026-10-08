@@ -103,6 +103,9 @@ class ConnectorRunner:
                             payload=record.payload,
                         ))
                 self._health_success(spec.source, started)
+                error = None
+                error_type = None
+                retry_after_seconds = None
                 break
             except RetryableConnectorError as exc:
                 error, error_type = f"{type(exc).__name__}: {exc}", type(exc).__name__
