@@ -18,7 +18,17 @@ resource "aws_iam_role" "autonomous_engineer" {
   max_session_duration = 3600
 }
 data "aws_iam_policy_document" "bedrock" {
-  statement { effect = "Allow" actions = ["bedrock:InvokeModel", "bedrock:Converse"] resources = [var.bedrock_model_arn] }
+  statement {
+    effect    = "Allow"
+    actions   = ["bedrock:InvokeModel", "bedrock:Converse"]
+    resources = concat([var.bedrock_model_arn], var.bedrock_inference_profile_arns)
+  }
+
+  statement {
+    effect    = "Allow"
+    actions   = ["bedrock:GetInferenceProfile", "bedrock:ListInferenceProfiles"]
+    resources = ["*"]
+  }
 }
 resource "aws_iam_role_policy" "bedrock" {
   name = "${var.name_prefix}-bedrock-invoke"
