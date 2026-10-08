@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 
@@ -16,7 +16,7 @@ class Entity:
     entity_type: str
     confidence: float
     evidence_refs: tuple[str, ...]
-    properties: Mapping[str, Any] = None  # type: ignore[assignment]
+    properties: Mapping[str, Any] = field(default_factory=dict)
     geometry: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
@@ -30,9 +30,6 @@ class Entity:
             raise EntityResolutionError("entity evidence_refs are mandatory")
         if len(set(self.evidence_refs)) != len(self.evidence_refs):
             raise EntityResolutionError("entity evidence_refs must be unique")
-        if self.properties is None:
-            object.__setattr__(self, "properties", {})
-
 
 @dataclass(frozen=True)
 class EntityMatch:
