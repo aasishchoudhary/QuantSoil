@@ -20,7 +20,7 @@ def create_app(service: AnalystService) -> FastAPI:
         correlation = request.headers.get("X-Correlation-ID") or hashlib.sha256(
             f"{datetime.now(timezone.utc).isoformat()}:{request.url.path}".encode()
         ).hexdigest()[:24]
-        if os.getenv("ANALYST_AUTH_MODE", "optional").lower() == "required":
+        if request.url.path != "/health" and os.getenv("ANALYST_AUTH_MODE", "optional").lower() == "required":
             expected = os.getenv("ANALYST_BEARER_TOKEN", "")
             supplied = request.headers.get("Authorization", "")
             if not expected or supplied != f"Bearer {expected}":
