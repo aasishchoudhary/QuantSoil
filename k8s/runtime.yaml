@@ -126,10 +126,25 @@ spec:
     spec:
       restartPolicy: Never
       serviceAccountName: world-intelligence-runtime
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: migrate
           image: ghcr.io/aasishchoudhary/quantsoil:0.1.0
           command: ["python", "-m", "services.runtime.migrate"]
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
           env:
             - name: DATABASE_URL
               valueFrom:
