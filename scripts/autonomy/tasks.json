@@ -1,20 +1,10 @@
 {
-  "version": 3,
+  "version": 4,
   "tasks": [
     {
       "id": "public-source-expansion",
       "priority": 30,
       "goal": "Add governed public connectors for weather, disaster, and geospatial feeds using explicit license metadata, schemas, fixtures, and source-health monitoring."
-    },
-    {
-      "id": "entity-ontology",
-      "priority": 40,
-      "goal": "Expand entity resolution into a governed ontology with temporal aliases, evidence-backed matches, and uncertainty-preserving identifiers."
-    },
-    {
-      "id": "world-state-query-api",
-      "priority": 50,
-      "goal": "Expose a read-only temporal world-state query API with as-of time, evidence references, contradiction visibility, and authorization boundaries."
     },
     {
       "id": "evaluation-gates",
