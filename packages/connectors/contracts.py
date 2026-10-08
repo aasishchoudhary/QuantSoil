@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping, Protocol
+from urllib.request import Request, urlopen
+import json
 
 
 class ConnectorError(RuntimeError):
@@ -54,6 +56,19 @@ class SourceRecord:
 
 class Connector(Protocol):
     spec: SourceSpec
+
+    @staticmethod
+    def _default_fetch(url: str) -> Mapping[str, Any]:
+        request = Request(url, headers={"User-Agent": "gods-eye-world-intelligence/0.1"})
+        try:
+            with urlopen(request, timeout=15) as response:
+                if response.status != 200:
+                    raise ConnectorError(f"USGS HTTP status {response.status}")
+                return json.loads(response.read().decode("utf-8"))
+        except ConnectorError:
+            raise
+        except Exception as exc:
+            raise ConnectorError(f"USGS transport failure: {type(exc).__name__}") from exc
 
     def fetch(self, *, since: datetime | None = None) -> Iterable[SourceRecord]:
         """Fetch source records without mutating authoritative state."""
@@ -136,9 +151,8 @@ class USGSEarthquakeConnector:
         self._fetcher = fetcher
 
     def fetch(self, *, since: datetime | None = None) -> Iterable[SourceRecord]:
-        if self._fetcher is None:
-            raise ConnectorError("USGS connector requires an injected fetcher in the runtime boundary")
-        document = self._fetcher(self.url)
+        fetcher = self._fetcher or self._default_fetch
+        document = fetcher(self.url)
         generated = document.get("metadata", {}).get("generated")
         if not isinstance(document, Mapping) or document.get("type") != "FeatureCollection":
             raise ConnectorError("invalid USGS GeoJSON FeatureCollection")
@@ -152,7 +166,7 @@ class USGSEarthquakeConnector:
             if not event_id or not isinstance(event_ms, (int, float)):
                 continue
             observed_at = datetime.fromtimestamp(event_ms / 1000.0, tz=timezone.utc)
-            acquired_at = utc_now()
+            acquired_at = max(utc_now(), observed_at)
             payload = {"feature": feature, "feed_generated": generated}
             if since is not None and observed_at < since:
                 continue
