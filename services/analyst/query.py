@@ -6,7 +6,7 @@ cannot create observations or authoritative claims.
 """
 from __future__ import annotations
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Protocol
 
 from packages.contracts.world_state import EntityState
@@ -78,7 +78,7 @@ class AnalystService:
         if at is not None: _aware(at, "at")
         if not 1 <= limit <= 5000:
             raise AnalystQueryError("limit must be between 1 and 5000")
-        return SpatialResult(at or datetime.now().astimezone(), tuple(
+        return SpatialResult(at or datetime.now(timezone.utc), tuple(
             self.map_repository.query_bbox(*bbox, at, limit)
         ))
 
