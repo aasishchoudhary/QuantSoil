@@ -4,9 +4,12 @@ The adapter keeps database concerns outside the world-state domain contract
 and uses deterministic interval queries for historical reconstruction.
 """
 from __future__ import annotations
+
 from datetime import datetime
 from typing import Any, Protocol
+
 from packages.contracts.world_state import EntityState, WorldStateError
+from packages.repositories.db import connection_scope
 
 
 class Cursor(Protocol):
@@ -61,37 +64,36 @@ class PostgresWorldStateRepository:
 
     def append(self, state: EntityState) -> EntityState:
         try:
-            with self._connection.cursor() as cursor:
-                cursor.execute(_INSERT, (
-                    state.state_id, state.entity_id, state.entity_type,
-                    state.valid_from, state.valid_to, state.observed_at,
-                    state.recorded_at, dict(state.properties),
-                    dict(state.geometry) if state.geometry is not None else None,
-                    state.confidence, list(state.evidence_refs),
-                ))
-            self._connection.commit()
+            with connection_scope(self._connection) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(_INSERT, (
+                        state.state_id, state.entity_id, state.entity_type,
+                        state.valid_from, state.valid_to, state.observed_at,
+                        state.recorded_at, dict(state.properties),
+                        dict(state.geometry) if state.geometry is not None else None,
+                        state.confidence, list(state.evidence_refs),
+                    ))
+                connection.commit()
         except Exception as exc:
-            try:
-                self._connection.rollback()
-            except Exception:
-                pass
             raise WorldStateRepositoryError("failed to persist world state") from exc
         return state
 
     def as_of(self, entity_id: str, at: datetime) -> EntityState | None:
         try:
-            with self._connection.cursor() as cursor:
-                cursor.execute(_SELECT_AT, (entity_id, at, at))
-                row = cursor.fetchone()
+            with connection_scope(self._connection) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(_SELECT_AT, (entity_id, at, at))
+                    row = cursor.fetchone()
         except Exception as exc:
             raise WorldStateRepositoryError("failed to read world state") from exc
         return None if row is None else self._row_to_state(row)
 
     def history(self, entity_id: str) -> tuple[EntityState, ...]:
         try:
-            with self._connection.cursor() as cursor:
-                cursor.execute(_SELECT_HISTORY, (entity_id,))
-                rows = cursor.fetchall()
+            with connection_scope(self._connection) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(_SELECT_HISTORY, (entity_id,))
+                    rows = cursor.fetchall()
         except Exception as exc:
             raise WorldStateRepositoryError("failed to read world-state history") from exc
         return tuple(self._row_to_state(row) for row in rows)

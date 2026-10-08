@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any, Protocol
 
 from packages.contracts.evidence import EvidenceRecord
+from packages.repositories.db import connection_scope
 
 
 class Cursor(Protocol):
@@ -64,35 +65,32 @@ class PostgresEvidenceRepository:
             raise EvidenceRepositoryError("payload_size_bytes must be non-negative")
 
         try:
-            with self._connection.cursor() as cursor:
-                cursor.execute(
-                    _INSERT,
-                    (
-                        record.evidence_id,
-                        record.source,
-                        record.source_record_id,
-                        record.observed_at,
-                        record.acquired_at,
-                        record.ingested_at,
-                        record.raw_payload_hash,
-                        record.parser_version,
-                        record.schema_version,
-                        record.license_class,
-                        payload_uri,
-                        payload_size_bytes,
-                    ),
-                )
-                cursor.execute(
-                    _SELECT,
-                    (record.source, record.source_record_id, record.raw_payload_hash),
-                )
-                row = cursor.fetchone()
-            self._connection.commit()
+            with connection_scope(self._connection) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        _INSERT,
+                        (
+                            record.evidence_id,
+                            record.source,
+                            record.source_record_id,
+                            record.observed_at,
+                            record.acquired_at,
+                            record.ingested_at,
+                            record.raw_payload_hash,
+                            record.parser_version,
+                            record.schema_version,
+                            record.license_class,
+                            payload_uri,
+                            payload_size_bytes,
+                        ),
+                    )
+                    cursor.execute(
+                        _SELECT,
+                        (record.source, record.source_record_id, record.raw_payload_hash),
+                    )
+                    row = cursor.fetchone()
+                connection.commit()
         except Exception as exc:
-            try:
-                self._connection.rollback()
-            except Exception:
-                pass
             raise EvidenceRepositoryError("failed to persist evidence record") from exc
 
         if row is None:
@@ -108,9 +106,10 @@ class PostgresEvidenceRepository:
         payload: dict[str, Any],
     ) -> EvidenceRecord | None:
         try:
-            with self._connection.cursor() as cursor:
-                cursor.execute(_SELECT, (source, source_record_id, raw_payload_hash))
-                row = cursor.fetchone()
+            with connection_scope(self._connection) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(_SELECT, (source, source_record_id, raw_payload_hash))
+                    row = cursor.fetchone()
         except Exception as exc:
             raise EvidenceRepositoryError("failed to read evidence record") from exc
         if row is None:
