@@ -52,6 +52,7 @@ app.innerHTML = `
   </header>
 
   <main class="workspace">
+    <button id="mobile-scrim" class="mobile-scrim" type="button" aria-label="Close side panel"></button>
     <aside class="left-rail">
       <section class="panel-section">
         <div class="section-head"><span>INVESTIGATION</span><b>01</b></div>
@@ -955,15 +956,34 @@ handler.setInputAction((movement: any) => {
 
 function closeOperatorRails(): void {
   document.body.classList.remove("mobile-left-open", "mobile-right-open");
+  $("#mobile-left").setAttribute("aria-expanded", "false");
+  $("#mobile-right").setAttribute("aria-expanded", "false");
 }
 
+const mobileLeftButton = $("#mobile-left");
+const mobileRightButton = $("#mobile-right");
+const mobileScrim = $("#mobile-scrim");
+function syncMobilePanelState(): void {
+  const leftOpen = document.body.classList.contains("mobile-left-open");
+  const rightOpen = document.body.classList.contains("mobile-right-open");
+  mobileLeftButton.setAttribute("aria-expanded", String(leftOpen));
+  mobileRightButton.setAttribute("aria-expanded", String(rightOpen));
+}
 $("#mobile-left").addEventListener("click", () => {
-  document.body.classList.toggle("mobile-left-open");
+  const shouldOpen = !document.body.classList.contains("mobile-left-open");
+  document.body.classList.toggle("mobile-left-open", shouldOpen);
   document.body.classList.remove("mobile-right-open");
+  syncMobilePanelState();
 });
 $("#mobile-right").addEventListener("click", () => {
-  document.body.classList.toggle("mobile-right-open");
+  const shouldOpen = !document.body.classList.contains("mobile-right-open");
+  document.body.classList.toggle("mobile-right-open", shouldOpen);
   document.body.classList.remove("mobile-left-open");
+  syncMobilePanelState();
+});
+mobileScrim.addEventListener("click", () => {
+  closeOperatorRails();
+  syncMobilePanelState();
 });
 
 const touchCompact = navigator.maxTouchPoints > 0 && window.innerWidth < 1200;
