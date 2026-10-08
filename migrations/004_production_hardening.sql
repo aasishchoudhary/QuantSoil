@@ -49,3 +49,34 @@ CREATE TABLE IF NOT EXISTS source_health (
         CHECK (consecutive_failures >= 0),
     CHECK (recorded_at >= observed_at)
 );
+
+
+-- Connector execution audit: immutable run summaries and rejected-record reasons.
+CREATE TABLE IF NOT EXISTS ingestion_runs (
+    run_id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    started_at TIMESTAMPTZ NOT NULL,
+    finished_at TIMESTAMPTZ NOT NULL,
+    records_seen INTEGER NOT NULL CHECK (records_seen >= 0),
+    records_accepted INTEGER NOT NULL CHECK (records_accepted >= 0),
+    records_rejected INTEGER NOT NULL CHECK (records_rejected >= 0),
+    attempts INTEGER NOT NULL CHECK (attempts >= 1),
+    error_type TEXT,
+    CHECK (finished_at >= started_at),
+    CHECK (records_accepted + records_rejected <= records_seen)
+);
+
+CREATE TABLE IF NOT EXISTS rejected_records (
+    rejection_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES ingestion_runs(run_id),
+    source TEXT NOT NULL,
+    source_record_id TEXT NOT NULL,
+    raw_payload_hash TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('stale','invalid','duplicate')),
+    reasons JSONB NOT NULL CHECK (jsonb_typeof(reasons) = 'array'),
+    observed_at TIMESTAMPTZ NOT NULL,
+    rejected_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_rejected_records_run ON rejected_records(run_id);
+CREATE INDEX IF NOT EXISTS idx_rejected_records_source_record ON rejected_records(source, source_record_id);
