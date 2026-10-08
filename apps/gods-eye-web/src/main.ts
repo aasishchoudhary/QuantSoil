@@ -263,7 +263,7 @@ async function refreshMap(): Promise<void> {
   const bbox = cameraBbox();
   if (!bbox) return;
   try {
-    const analysisAt = analysisTimeInput.value ? new Date(analysisTimeInput.value).toISOString() : new Date().toISOString();
+    const analysisAt = analysisTimeInput.value ? new Date(`${analysisTimeInput.value}:00Z`).toISOString() : new Date().toISOString();
     const data = await requestJson(`/spatial?bbox=${encodeURIComponent(bbox)}&at=${encodeURIComponent(analysisAt)}&limit=1000`);
     if (id !== requestSeq) return;
     lastFeatures = data.features || [];
@@ -409,8 +409,7 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
-const now = new Date();
-analysisTimeInput.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+analysisTimeInput.value = new Date().toISOString().slice(0, 16);
 void checkHealth().then((ready) => {
   if (ready) void refreshMap();
 });
