@@ -1,4 +1,4 @@
 """Governed connector runtime."""
-from .contracts import Connector, ConnectorError, ConnectorRun, SourceRecord, SourceSpec
-from .registry import SourceRegistry
+from packages.connectors.contracts import Connector, ConnectorError, ConnectorRun, SourceRecord, SourceSpec
+from packages.connectors.registry import SourceRegistry
 from .retry import RetryPolicy, RetryableConnectorError
