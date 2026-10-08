@@ -1,35 +1,13 @@
 {
-  "version": 1,
+  "version": 2,
   "tasks": [
-    {
-      "id": "observation-evidence-bridge",
-      "priority": 20,
-      "goal": "Implement a deterministic bridge from validated Observation contracts into EvidenceRecord without losing provenance or temporal metadata. Add tests for replay, hash integrity, and metadata preservation.",
-      "done_when": [
-        "Every derived observation retains an evidence reference.",
-        "Payload identity is deterministic.",
-        "Tampering is rejected."
-      ]
-    },
-    {
-      "id": "event-contract",
-      "priority": 30,
-      "goal": "Design and implement the first production Event contract for the event engine, preserving observed versus derived versus predicted state and explicit evidence references. Add JSON schema and tests.",
-      "done_when": [
-        "Observed and predicted state cannot be conflated.",
-        "Event provenance is mandatory.",
-        "Schema and unit tests pass."
-      ]
-    },
-    {
-      "id": "provenance-trace-api",
-      "priority": 40,
-      "goal": "Implement a small deterministic provenance-trace service contract that can resolve an observation or event back to its evidence record and source metadata. Include failure behavior and tests.",
-      "done_when": [
-        "Trace results are deterministic.",
-        "Missing evidence is explicit rather than silently omitted.",
-        "Tests cover valid and missing references."
-      ]
-    }
+    {"id":"ingestion-audit","priority":10,"goal":"Persist connector run summaries and rejected-record reasons with immutable IDs; add replayable tests and migration evidence."},
+    {"id":"connector-observability","priority":20,"goal":"Add bounded retry attempt telemetry using low-cardinality error types, resend count, source, and run correlation without secrets."},
+    {"id":"public-source-expansion","priority":30,"goal":"Add governed public connectors for weather, disaster, and geospatial feeds using explicit license metadata, schemas, fixtures, and source-health monitoring."},
+    {"id":"entity-ontology","priority":40,"goal":"Expand entity resolution into a governed ontology with temporal aliases, evidence-backed matches, and uncertainty-preserving identifiers."},
+    {"id":"world-state-query-api","priority":50,"goal":"Expose a read-only temporal world-state query API with as-of time, evidence references, contradiction visibility, and authorization boundaries."},
+    {"id":"evaluation-gates","priority":60,"goal":"Add end-to-end replay, provenance, contradiction, stale-data, outage, schema-drift, and performance acceptance suites."},
+    {"id":"production-runtime","priority":70,"goal":"Add persistent queue/stream integration, deployment manifests, health/readiness, backup/recovery procedures, and operational runbooks."},
+    {"id":"analyst-layer","priority":80,"goal":"Build evidence-first analyst queries, map views, timelines, and derived-event workflows without allowing unverified AI claims into authoritative state."}
   ]
 }
