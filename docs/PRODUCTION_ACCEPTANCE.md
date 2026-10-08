@@ -84,3 +84,13 @@ All external GitHub Actions used by the production workflows are pinned to
 full-length commit SHAs, and the repository acceptance gate rejects mutable
 action tags. GitHub documents full-SHA pinning as the immutable action-reference
 mechanism for reducing workflow supply-chain risk.
+
+
+### Termux first-run
+
+The repository includes scripts/termux_first_run.sh for a reproducible Android/Termux
+local gate. It creates the Python environment, installs project/test dependencies,
+runs repository production acceptance and unit tests, and runs the web build when
+Node/npm are available. It deliberately reports PostgreSQL/S3, Kubernetes,
+TLS/OIDC and other target-infrastructure checks as deferred rather than
+fabricating local success.
