@@ -11,6 +11,22 @@ export default defineConfig({
         target: analystProxyTarget,
         changeOrigin: true,
       },
+      "/health": {
+        target: analystProxyTarget,
+        changeOrigin: true,
+      },
+      "/spatial": {
+        target: analystProxyTarget,
+        changeOrigin: true,
+      },
+      "/snapshot": {
+        target: analystProxyTarget,
+        changeOrigin: true,
+      },
+      "/timeline": {
+        target: analystProxyTarget,
+        changeOrigin: true,
+      },
     },
   },
 });
