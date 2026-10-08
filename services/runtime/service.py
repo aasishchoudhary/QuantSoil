@@ -8,9 +8,16 @@ from fastapi.responses import JSONResponse
 
 from packages.connectors.usgs import USGSEarthquakeConnector
 from packages.connectors.noaa import NOAAWeatherAlertsConnector
+from packages.connectors.nasa_eonet import NASAEONETConnector
 from packages.connectors.registry import SourceRegistry
 from packages.repositories.evidence_payload_s3 import S3EvidencePayloadStore
 from packages.repositories.evidence_postgres import PostgresEvidenceRepository
+from packages.repositories.world_state_postgres import PostgresWorldStateRepository
+from packages.repositories.map_postgres import PostgresMapRepository
+from packages.repositories.analyst_audit_postgres import PostgresAnalystAuditRepository
+from services.analyst.query import AnalystService
+from services.analyst.api import create_app as create_analyst_app
+from services.geospatial.api import create_app as create_map_app
 from packages.repositories.source_health_postgres import PostgresIngestionAuditRepository, PostgresSourceHealthRepository
 from services.connectors.runner import ConnectorRunner
 from services.connectors.retry import RetryPolicy
@@ -41,7 +48,10 @@ def build_components():
     noaa = NOAAWeatherAlertsConnector(
         user_agent=os.getenv("NWS_USER_AGENT", "GodsEyeWorldIntelligence/0.1")
     )
-    for connector in (usgs, noaa):
+    eonet = NASAEONETConnector(
+        user_agent=os.getenv("NASA_EONET_USER_AGENT", "GodsEyeWorldIntelligence/0.1")
+    )
+    for connector in (usgs, noaa, eonet):
         registry.register(connector.spec)
     connectors = {usgs.spec.source: usgs, noaa.spec.source: noaa}
 
@@ -108,6 +118,10 @@ def create_app() -> FastAPI:
 
         state["connection"] = connection
         state["connector_count"] = len(connectors)
+        map_repository = PostgresMapRepository(connection)
+        analyst_service = AnalystService(PostgresWorldStateRepository(connection), map_repository)
+        app.mount("/v1/analyst", create_analyst_app(analyst_service, PostgresAnalystAuditRepository(connection)))
+        app.mount("/v1/map", create_map_app(map_repository))
         state["started"] = True
 
         def loop():

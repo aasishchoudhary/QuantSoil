@@ -1,0 +1,17 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://gods-eye-world-intelligence.dev/schemas/prediction.schema.json",
+  "title":"Evidence-backed prediction",
+  "type":"object",
+  "required":["event_id","state","model_version","generated_at","horizon_seconds","probability","evidence_refs"],
+  "properties":{
+    "event_id":{"type":"string","minLength":1},
+    "state":{"const":"predicted"},
+    "model_version":{"type":"string","minLength":1},
+    "generated_at":{"type":"string","format":"date-time"},
+    "horizon_seconds":{"type":"number","exclusiveMinimum":0},
+    "probability":{"type":"number","minimum":0,"maximum":1},
+    "evidence_refs":{"type":"array","items":{"type":"string","minLength":1},"minItems":1,"uniqueItems":true}
+  },
+  "additionalProperties":true
+}

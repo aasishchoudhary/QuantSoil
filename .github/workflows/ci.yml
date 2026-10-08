@@ -8,7 +8,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
     services:
       postgres:
-        image: postgres:16
+        image: postgis/postgis:16-3.5
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
@@ -28,6 +28,9 @@ jobs:
           python-version: "3.12"
       - name: Install package and test dependencies
         run: python -m pip install --upgrade pip && python -m pip install -e ".[test]"
+      - name: Apply database migrations
+        run: python -m services.runtime.migrate
+
       - name: Validate all JSON schemas
         run: |
           set -euo pipefail
@@ -38,7 +41,23 @@ jobs:
         run: python -m compileall -q packages services tests
 
       - name: Validate Kubernetes manifests
-        run: python -c 'import pathlib, yaml; list(yaml.safe_load_all(pathlib.Path("k8s/runtime.yaml").read_text()))'
+        run: python -c 'import pathlib, yaml; [list(yaml.safe_load_all(p.read_text())) for p in pathlib.Path("k8s").glob("*.yaml")]'
 
       - name: Run unit tests
         run: python -m pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/gods-eye-web
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install web dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build analyst UI
+        run: npm run build

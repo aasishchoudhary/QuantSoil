@@ -8,21 +8,6 @@ from services.runtime.postgres import PostgresJobQueue
 
 pytestmark = pytest.mark.integration
 
-DDL = """
-CREATE TABLE IF NOT EXISTS runtime_jobs (
-    job_id TEXT PRIMARY KEY,
-    source TEXT NOT NULL,
-    idempotency_key TEXT NOT NULL UNIQUE,
-    scheduled_at TIMESTAMPTZ NOT NULL,
-    attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
-    status TEXT NOT NULL CHECK (status IN ('queued','running','succeeded','retry','failed')),
-    lease_until TIMESTAMPTZ,
-    last_error_type TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-)
-"""
-
 @pytest.fixture()
 def db():
     dsn = os.getenv("DATABASE_URL")
@@ -30,7 +15,6 @@ def db():
         pytest.skip("DATABASE_URL not configured")
     connection = psycopg.connect(dsn)
     with connection.cursor() as cursor:
-        cursor.execute(DDL)
         cursor.execute("TRUNCATE runtime_jobs")
     connection.commit()
     yield connection
