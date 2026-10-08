@@ -25,7 +25,12 @@ class S3EvidencePayloadStore:
         key = f"{self.prefix}{record.raw_payload_hash[:2]}/{record.raw_payload_hash}.json"
         try:
             self._client.head_object(Bucket=self.bucket, Key=key)
-        except Exception:
+            return f"s3://{self.bucket}/{key}", len(body)
+        except Exception as exc:
+            response = getattr(exc, "response", {})
+            code = str(response.get("Error", {}).get("Code", ""))
+            if code not in {"404", "NoSuchKey", "NotFound"}:
+                raise RuntimeError("failed to verify existing evidence object") from exc
             self._client.put_object(
                 Bucket=self.bucket,
                 Key=key,
