@@ -14,6 +14,7 @@ from services.ingestion.observation import ObservationIngestor
 
 
 class SourceHealthStore(Protocol):
+    def get(self, source: str) -> SourceHealth | None: ...
     def put(self, health: SourceHealth) -> SourceHealth: ...
 
 
@@ -83,11 +84,11 @@ class ConnectorRunner:
     def _health_success(self, source: str, timestamp: datetime) -> None:
         if self.health_store is not None:
             self.health_store.put(record_success(
-                None, source=source, observed_at=timestamp, recorded_at=timestamp
+                self.health_store.get(source), source=source, observed_at=timestamp, recorded_at=timestamp
             ))
 
     def _health_failure(self, source: str, timestamp: datetime) -> None:
         if self.health_store is not None:
             self.health_store.put(record_failure(
-                None, source=source, observed_at=timestamp, recorded_at=timestamp
+                self.health_store.get(source), source=source, observed_at=timestamp, recorded_at=timestamp
             ))
