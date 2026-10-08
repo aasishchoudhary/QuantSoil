@@ -131,8 +131,6 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
             summary = service.evidence_summary(result.states)
         except AnalystUnavailableError as exc:
             raise HTTPException(503, str(exc)) from exc
-        except AnalystUnavailableError as exc:
-            raise HTTPException(503, str(exc)) from exc
         except AnalystQueryError as exc:
             raise HTTPException(400, str(exc)) from exc
         return {
@@ -174,6 +172,8 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
     def timeline(entity_id: str, start: datetime = Query(...), end: datetime = Query(...)) -> dict[str, Any]:
         try:
             result = service.timeline(entity_id, start=start, end=end)
+        except AnalystUnavailableError as exc:
+            raise HTTPException(503, str(exc)) from exc
         except AnalystQueryError as exc:
             raise HTTPException(400, str(exc)) from exc
         return {
