@@ -23,17 +23,18 @@ class S3EvidencePayloadStore:
         key = f"{self.prefix}{record.raw_payload_hash[:2]}/{record.raw_payload_hash}.json"
         try:
             existing = self._client.head_object(Bucket=self.bucket, Key=key)
-            existing_hash = str(existing.get("Metadata", {}).get("sha256", ""))
-            if existing_hash and existing_hash != record.raw_payload_hash:
-                raise RuntimeError("existing evidence object hash does not match content address")
-            if int(existing.get("ContentLength", -1)) != len(body):
-                raise RuntimeError("existing evidence object length does not match payload")
-            return f"s3://{self.bucket}/{key}", len(body)
         except Exception as exc:
             response = getattr(exc, "response", {})
             code = str(response.get("Error", {}).get("Code", ""))
             if code not in {"404", "NoSuchKey", "NotFound"}:
                 raise RuntimeError("failed to verify existing evidence object") from exc
+        else:
+            existing_hash = str(existing.get("Metadata", {}).get("sha256", ""))
+            if existing_hash != record.raw_payload_hash:
+                raise RuntimeError("existing evidence object hash does not match content address")
+            if int(existing.get("ContentLength", -1)) != len(body):
+                raise RuntimeError("existing evidence object length does not match payload")
+            return f"s3://{self.bucket}/{key}", len(body)
             self._client.put_object(
                 Bucket=self.bucket,
                 Key=key,
