@@ -17,6 +17,10 @@ spec:
       labels:
         app: gods-eye-web
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: web
           image: ghcr.io/aasishchoudhary/quantsoil-web:0.1.0
