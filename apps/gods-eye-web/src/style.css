@@ -66,7 +66,8 @@ button:hover{border-color:#3c5965;background:#11202a}
 .mode-tag{padding:5px 7px;border:1px solid rgba(49,72,83,.8);background:rgba(5,11,15,.82);color:var(--accent);font:8px ui-monospace,monospace;letter-spacing:.1em}
 #view-coords{color:#60737e;font:8px ui-monospace,monospace;letter-spacing:.1em}
 .icon-btn{width:31px;height:31px;padding:0;background:rgba(5,11,15,.82);font-size:16px;color:#91a4af}
-.map-empty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,70%);padding:23px;border:1px solid rgba(47,66,76,.7);background:rgba(5,10,14,.87);box-shadow:var(--shadow);text-align:center;z-index:6;backdrop-filter:blur(8px)}
+.map-empty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,70%);padding:23px;border:1px solid rgba(47,66,76,.7);background:rgba(5,10,14,.87);box-shadow:var(--shadow);text-align:center;z-index:6;backdrop-filter:blur(8px);pointer-events:none}
+.map-empty.error-state{pointer-events:none}
 .map-empty.hidden{display:none}
 .empty-kicker{color:var(--accent);font:8px ui-monospace,monospace;letter-spacing:.2em}
 .map-empty h1{font-size:18px;font-weight:500;margin:9px 0 8px;color:#d6e2e8}
@@ -216,4 +217,104 @@ pre{margin:0;padding:11px;color:#9db2be;font:9px/1.6 ui-monospace,monospace;whit
   background:rgba(4,10,15,.78);
   border:1px solid rgba(130,170,190,.18);
   color:#b8c8d1;
+}
+
+
+.mobile-controls{display:none}
+
+@media (pointer:coarse) and (max-width:1199px){
+  .mobile-controls{
+    display:flex;
+    position:absolute;
+    left:8px;
+    top:7px;
+    gap:5px;
+    z-index:60;
+  }
+  .mobile-controls button{
+    width:34px;
+    height:34px;
+    padding:0;
+    background:rgba(5,11,15,.92);
+    border-color:#29404b;
+    color:#a8c1cb;
+    font-size:15px;
+  }
+  .topbar{
+    padding-left:82px;
+  }
+}
+
+body.compact-operator .workspace{
+  display:block;
+}
+
+body.compact-operator .left-rail,
+body.compact-operator .right-panel{
+  position:absolute;
+  top:0;
+  bottom:0;
+  z-index:50;
+  width:min(360px,92vw);
+  max-width:92vw;
+  background:rgba(8,14,20,.98);
+  overflow:auto;
+  -webkit-overflow-scrolling:touch;
+}
+
+body.compact-operator .left-rail{
+  left:0;
+  transform:translateX(-102%);
+  transition:transform .2s ease;
+}
+
+body.compact-operator .right-panel{
+  right:0;
+  transform:translateX(102%);
+  transition:transform .2s ease;
+}
+
+body.compact-operator.mobile-left-open .left-rail{transform:translateX(0)}
+body.compact-operator.mobile-right-open .right-panel{transform:translateX(0)}
+
+body.compact-operator.mobile-left-open:after,
+body.compact-operator.mobile-right-open:after{
+  content:"";
+  position:fixed;
+  inset:52px 0 29px;
+  background:rgba(0,0,0,.5);
+  z-index:40;
+  pointer-events:auto;
+}
+
+body.compact-operator.mobile-left-open .left-rail,
+body.compact-operator.mobile-right-open .right-panel{
+  box-shadow:0 18px 60px rgba(0,0,0,.65);
+}
+
+body.compact-operator .map-stage{
+  width:100%;
+  height:100%;
+}
+
+body.compact-operator .aircraft-legend{
+  left:8px;
+  bottom:34px;
+  max-width:calc(100% - 16px);
+  overflow:hidden;
+  white-space:nowrap;
+}
+
+body.compact-operator .osm-attribution{
+  right:8px;
+  bottom:8px;
+}
+
+@media (max-width:520px){
+  body.compact-operator .map-empty{
+    width:84%;
+    padding:15px;
+  }
+  body.compact-operator .map-empty h1{font-size:14px}
+  body.compact-operator .map-empty p{font-size:9px}
 }
