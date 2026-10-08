@@ -1,0 +1,14 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://gods-eye-world-intelligence.dev/schemas/source-record.schema.json",
+  "title":"Source Record",
+  "type":"object",
+  "required":["source_record_id","payload","observed_at","acquired_at"],
+  "properties":{
+    "source_record_id":{"type":"string","minLength":1},
+    "payload":{"type":"object","minProperties":1},
+    "observed_at":{"type":"string","format":"date-time"},
+    "acquired_at":{"type":"string","format":"date-time"}
+  },
+  "additionalProperties":false
+}
