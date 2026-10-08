@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import time
-from collections import defaultdict, deque
+from collections import OrderedDict, deque
 from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -18,8 +18,14 @@ _LOG = logging.getLogger("gods_eye.analyst")
 def create_app(service: AnalystService, audit_store=None) -> FastAPI:
     app = FastAPI(title="God's Eye World Intelligence — Analyst API", version="0.1.0")
 
-    rate_limit = defaultdict(deque)
+    rate_limit: OrderedDict[str, deque[float]] = OrderedDict()
     rate_limit_per_minute = int(os.getenv("ANALYST_RATE_LIMIT_PER_MINUTE", "120"))
+    rate_limit_max_clients = int(os.getenv("ANALYST_RATE_LIMIT_MAX_CLIENTS", "10000"))
+    trust_proxy_headers = os.getenv("ANALYST_TRUST_PROXY_HEADERS", "false").lower() == "true"
+    if rate_limit_per_minute < 1:
+        raise ValueError("ANALYST_RATE_LIMIT_PER_MINUTE must be >= 1")
+    if rate_limit_max_clients < 1:
+        raise ValueError("ANALYST_RATE_LIMIT_MAX_CLIENTS must be >= 1")
 
     @app.middleware("http")
     async def security_and_audit(request, call_next):
@@ -27,9 +33,23 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
             f"{datetime.now(timezone.utc).isoformat()}:{request.url.path}".encode()
         ).hexdigest()[:24]
         if request.url.path != "/health":
-            client_key = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown").split(",")[0].strip()
+            if trust_proxy_headers:
+                client_key = request.headers.get(
+                    "X-Forwarded-For",
+                    request.client.host if request.client else "unknown",
+                ).split(",")[0].strip()
+            else:
+                client_key = request.client.host if request.client else "unknown"
+            client_key = client_key or "unknown"
             now = time.monotonic()
-            bucket = rate_limit[client_key]
+            bucket = rate_limit.get(client_key)
+            if bucket is None:
+                if len(rate_limit) >= rate_limit_max_clients:
+                    rate_limit.popitem(last=False)
+                bucket = deque()
+                rate_limit[client_key] = bucket
+            else:
+                rate_limit.move_to_end(client_key)
             while bucket and now - bucket[0] >= 60:
                 bucket.popleft()
             if len(bucket) >= rate_limit_per_minute:
