@@ -101,7 +101,7 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: world-intelligence-migrate
+  generateName: world-intelligence-migrate-
 spec:
   backoffLimit: 3
   template:
