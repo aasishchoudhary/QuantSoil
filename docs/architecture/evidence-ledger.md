@@ -17,7 +17,7 @@ The Evidence Ledger is the trust boundary between source ingestion and downstrea
 
 The PostgreSQL migration defines the provenance index. Raw payload bytes should live in immutable/versioned object storage, referenced by `payload_uri`; the database record remains the queryable integrity and provenance index.
 
-The current Python `InMemoryEvidenceLedger` is intentionally infrastructure-free for deterministic tests and replay evaluation. A PostgreSQL repository is the next implementation step.
+The current Python `InMemoryEvidenceLedger` is intentionally infrastructure-free for deterministic tests and replay evaluation. A DB-API-compatible PostgreSQL repository adapter is implemented in `packages/repositories/evidence_postgres.py`; it preserves the ledger identity, commits atomically, rolls back on failure, and redacts driver errors at the application boundary.
 
 ## Replay semantics
 
