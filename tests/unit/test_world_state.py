@@ -55,3 +55,18 @@ def test_duplicate_state_id_is_rejected():
     repo.append(state("s-1", "e-1", t1))
     with pytest.raises(WorldStateError, match="duplicate"):
         repo.append(state("s-1", "e-1", t1))
+
+def test_overlapping_validity_intervals_are_rejected():
+    repo = InMemoryWorldStateRepository()
+    t1 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    t2 = datetime(2026, 1, 3, tzinfo=timezone.utc)
+    repo.append(state("s-1", "e-1", t1, valid_to=t2))
+    with pytest.raises(WorldStateError, match="overlapping"):
+        repo.append(
+            state(
+                "s-2",
+                "e-1",
+                datetime(2026, 1, 2, tzinfo=timezone.utc),
+                valid_to=datetime(2026, 1, 4, tzinfo=timezone.utc),
+            )
+        )
