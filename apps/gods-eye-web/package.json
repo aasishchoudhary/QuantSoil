@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "cesium": "1.146.0",
-    "satellite.js": "7.1.0"
+    "satellite.js": "6.0.2"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
