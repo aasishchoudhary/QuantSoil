@@ -7,6 +7,7 @@ import logging
 import os
 from typing import Any
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import JSONResponse
 from services.analyst.query import AnalystQueryError, AnalystService
 
 _LOG = logging.getLogger("gods_eye.analyst")
