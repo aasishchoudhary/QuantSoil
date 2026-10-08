@@ -1,0 +1,6 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://gods-eye-world-intelligence.dev/schemas/runtime-job.schema.json",
+  "title":"Runtime Job","type":"object","required":["job_id","source","idempotency_key","scheduled_at","attempts","status"],
+  "properties":{"job_id":{"type":"string","minLength":1},"source":{"type":"string","minLength":1},"idempotency_key":{"type":"string","minLength":1},"scheduled_at":{"type":"string","format":"date-time"},"attempts":{"type":"integer","minimum":0},"status":{"enum":["queued","running","succeeded","retry","failed"]},"lease_until":{"type":["string","null"],"format":"date-time"},"last_error_type":{"type":["string","null"],"minLength":1}},"additionalProperties":false
+}
