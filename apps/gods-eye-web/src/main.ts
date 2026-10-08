@@ -5,12 +5,14 @@ import {
   JulianDate,
   SampledPositionProperty,
   ClockRange,
+  ExtrapolationType,
   BillboardGraphics,
   PropertyBag,
   Color,
   LabelStyle,
   ConstantProperty,
   PathGraphics,
+  DistanceDisplayCondition,
   GeoJsonDataSource,
   OpenStreetMapImageryProvider,
   EllipsoidTerrainProvider,
@@ -33,6 +35,10 @@ function apiUrl(path: string): string {
 app.innerHTML = `
 <div class="app-shell">
   <header class="topbar">
+    <div class="mobile-controls">
+      <button id="mobile-left" title="Open investigation controls">☰</button>
+      <button id="mobile-right" title="Open analyst inspector">▤</button>
+    </div>
     <div class="brand">
       <div class="brand-mark">GE</div>
       <div><strong>GOD'S EYE</strong><span>WORLD INTELLIGENCE</span></div>
@@ -170,10 +176,13 @@ const dataSources = new Map<string, any>();
 const liveSources = new Map<string, any>();
 const aircraftEntities = new Map<string, Entity>();
 const aircraftSamples = new Map<string, JulianDate[]>();
+const aircraftLastSeen = new Map<string, number>();
 const satelliteEntities = new Map<string, Entity>();
 let liveClockInitialized = false;
-const AIRCRAFT_TRAIL_SECONDS = 180;
-const AIRCRAFT_LEAD_SECONDS = 20;
+const AIRCRAFT_TRAIL_SECONDS = 300;
+const AIRCRAFT_LEAD_SECONDS = 30;
+const AIRCRAFT_STALE_SECONDS = 75;
+const AIRCRAFT_LABEL_ZOOM_METERS = 1800000;
 const SATELLITE_ORBIT_SECONDS = 2 * 60 * 60;
 const SATELLITE_SAMPLE_SECONDS = 240;
 const AIRCRAFT_ICON = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M32 3 L39 27 L57 35 L57 41 L39 37 L36 60 L28 60 L25 37 L7 41 L7 35 L25 27 Z" fill="#e8f7ff" stroke="#07131d" stroke-width="3" stroke-linejoin="round"/></svg>`);
@@ -231,6 +240,25 @@ viewer.imageryLayers.addImageryProvider(new OpenStreetMapImageryProvider({
 }));
 viewer.camera.setView({ destination: Cartesian3.fromDegrees(78, 23, 9000000) });
 
+function updateAircraftPresentation(): void {
+  const labelsEnabled = ($("#layer-labels") as HTMLInputElement).checked;
+  const height = viewer.camera.positionCartographic?.height ?? Number.POSITIVE_INFINITY;
+  const closeEnoughForLabels = height <= AIRCRAFT_LABEL_ZOOM_METERS;
+  aircraftEntities.forEach((entity) => {
+    if (entity.label) {
+      const tracked = viewer.trackedEntity === entity;
+      entity.label.show = new ConstantProperty(labelsEnabled && (tracked || closeEnoughForLabels));
+    }
+  });
+}
+
+function updateSatellitePresentation(): void {
+  const labelsEnabled = ($("#layer-labels") as HTMLInputElement).checked;
+  satelliteEntities.forEach((entity) => {
+    if (entity.label) entity.label.show = new ConstantProperty(labelsEnabled);
+  });
+}
+
 function setLayerVisibility(): void {
   const entities = dataSources.get("analyst");
   if (entities) {
@@ -242,17 +270,14 @@ function setLayerVisibility(): void {
       if (entity.label) entity.label.show = new ConstantProperty(labels);
     });
   }
-  aircraftEntities.forEach((entity) => {
-    if (entity.label) entity.label.show = new ConstantProperty(labels);
-  });
-  satelliteEntities.forEach((entity) => {
-    if (entity.label) entity.label.show = new ConstantProperty(labels);
-  });
+  updateAircraftPresentation();
+  updateSatellitePresentation();
 }
 function removeAircraftEntities(): void {
   for (const entity of aircraftEntities.values()) viewer.entities.remove(entity);
   aircraftEntities.clear();
   aircraftSamples.clear();
+  aircraftLastSeen.clear();
 }
 
 function removeSatelliteEntities(): void {
@@ -297,7 +322,9 @@ function updateAircraftSamples(
   futureTime: JulianDate,
   futurePosition: Cartesian3,
 ): void {
-  let property = entity.position as SampledPositionProperty;
+  const property = entity.position as SampledPositionProperty;
+  property.forwardExtrapolationType = ExtrapolationType.EXTRAPOLATE;
+  property.forwardExtrapolationDuration = AIRCRAFT_STALE_SECONDS;
   const times = aircraftSamples.get(icao) || [];
   const lastTime = times[times.length - 1];
   if (!lastTime || JulianDate.compare(sampleTime, lastTime) > 0) {
@@ -339,6 +366,7 @@ async function refreshAircraft(): Promise<void> {
     if (![lon, lat, altitude].every(Number.isFinite)) continue;
 
     seen.add(icao);
+    aircraftLastSeen.set(icao, Date.now());
     const position = Cartesian3.fromDegrees(lon, lat, altitude);
     const category = props.category == null ? null : Number(props.category);
     const heading = props.heading_deg == null ? null : Number(props.heading_deg);
@@ -365,9 +393,12 @@ async function refreshAircraft(): Promise<void> {
     }
 
     const positionProperty = new SampledPositionProperty();
+    positionProperty.forwardExtrapolationType = ExtrapolationType.EXTRAPOLATE;
+    positionProperty.forwardExtrapolationDuration = AIRCRAFT_STALE_SECONDS;
     positionProperty.addSample(sampleTime, position);
     positionProperty.addSample(futureTime, futurePosition);
     aircraftSamples.set(icao, [sampleTime]);
+    aircraftLastSeen.set(icao, Date.now());
 
     const entity = viewer.entities.add({
       id: `aircraft-${icao}`,
@@ -375,9 +406,10 @@ async function refreshAircraft(): Promise<void> {
       position: positionProperty,
       billboard: new BillboardGraphics({
         image: aircraftIcon(category),
-        width: 30,
-        height: 30,
+        width: 34,
+        height: 34,
         rotation: (heading || 0) * Math.PI / 180,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
         alignedAxis: Cartesian3.ZERO,
         pixelOffset: new Cartesian2(0, 0),
       }),
@@ -385,7 +417,9 @@ async function refreshAircraft(): Promise<void> {
         text: aircraftLabel(props, icao),
         font: "11px monospace",
         style: LabelStyle.FILL_AND_OUTLINE,
-        show: ($("#layer-labels") as HTMLInputElement).checked,
+        show: false,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        distanceDisplayCondition: new DistanceDisplayCondition(0, AIRCRAFT_LABEL_ZOOM_METERS),
         showBackground: true,
         backgroundColor: Color.fromCssColorString("rgba(4,12,18,0.78)"),
         fillColor: Color.WHITE,
@@ -396,8 +430,8 @@ async function refreshAircraft(): Promise<void> {
         show: true,
         trailTime: AIRCRAFT_TRAIL_SECONDS,
         leadTime: AIRCRAFT_LEAD_SECONDS,
-        width: 2,
-        resolution: 10,
+        width: 3,
+        resolution: 5,
         material: Color.fromCssColorString("rgba(255,209,102,0.8)"),
       }),
       properties: new PropertyBag({
@@ -414,14 +448,23 @@ async function refreshAircraft(): Promise<void> {
     aircraftEntities.set(icao, entity);
   }
 
+  const nowMs = Date.now();
   for (const [icao, entity] of aircraftEntities) {
-    if (!seen.has(icao)) {
+    const ageSeconds = (nowMs - (aircraftLastSeen.get(icao) || 0)) / 1000;
+    if (!seen.has(icao) && ageSeconds > AIRCRAFT_STALE_SECONDS) {
+      entity.show = false;
+    } else {
+      entity.show = true;
+    }
+    if (ageSeconds > AIRCRAFT_STALE_SECONDS * 2) {
       viewer.entities.remove(entity);
       aircraftEntities.delete(icao);
       aircraftSamples.delete(icao);
+      aircraftLastSeen.delete(icao);
     }
   }
 
+  updateAircraftPresentation();
   viewer.clock.shouldAnimate = true;
   setMetric(featureCount, data.count || 0);
   setStatus(`AIRCRAFT LIVE • ${data.count || 0}`, "ready");
@@ -671,7 +714,7 @@ async function refreshMap(): Promise<void> {
   if (!bbox) return;
   try {
     const analysisAt = analysisTimeInput.value ? new Date(`${analysisTimeInput.value}:00Z`).toISOString() : new Date().toISOString();
-    const data = await requestJson(`/spatial?bbox=${encodeURIComponent(bbox)}&at=${encodeURIComponent(analysisAt)}&limit=1000`);
+    const data = await requestJson(`/v1/analyst/spatial?bbox=${encodeURIComponent(bbox)}&at=${encodeURIComponent(analysisAt)}&limit=1000`);
     if (id !== requestSeq) return;
     lastFeatures = data.features || [];
     const old = dataSources.get("analyst");
@@ -700,6 +743,7 @@ async function refreshMap(): Promise<void> {
   } catch (error) {
     setStatus("ANALYST QUERY FAILED", "error");
     emptyEl.classList.remove("hidden");
+    emptyEl.classList.add("error-state");
     emptyEl.querySelector("h1")!.textContent = "Intelligence query failed";
     emptyEl.querySelector("p")!.textContent = escapeHtml(error instanceof Error ? error.message : error);
   }
@@ -725,7 +769,7 @@ async function inspectEntity(entityId = entityInput.value.trim()): Promise<void>
     return;
   }
   try {
-    const data = await requestJson(`/snapshot?entity_ids=${encodeURIComponent(entityId)}&at=${encodeURIComponent(new Date().toISOString())}`);
+    const data = await requestJson(`/v1/analyst/snapshot?entity_ids=${encodeURIComponent(entityId)}&at=${encodeURIComponent(new Date().toISOString())}`);
     if (!data.states?.length) {
       $("#record-state").textContent = "NOT FOUND";
       $("#inspector-title").textContent = entityId;
@@ -751,7 +795,7 @@ async function loadTimeline(days: number): Promise<void> {
   const end = new Date();
   const start = new Date(end.getTime() - days * 86400000);
   try {
-    const data = await requestJson(`/timeline/${encodeURIComponent(entityId)}?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`);
+    const data = await requestJson(`/v1/analyst/timeline/${encodeURIComponent(entityId)}?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`);
     const changes = data.changes || [];
     resultsEl.innerHTML = changes.length
       ? changes.map((change: any) => `
@@ -824,6 +868,22 @@ handler.setInputAction((movement: any) => {
   selectEntityFromGlobe(entity);
 }, ScreenSpaceEventType.LEFT_CLICK);
 
+function closeOperatorRails(): void {
+  document.body.classList.remove("mobile-left-open", "mobile-right-open");
+}
+
+$("#mobile-left").addEventListener("click", () => {
+  document.body.classList.toggle("mobile-left-open");
+  document.body.classList.remove("mobile-right-open");
+});
+$("#mobile-right").addEventListener("click", () => {
+  document.body.classList.toggle("mobile-right-open");
+  document.body.classList.remove("mobile-left-open");
+});
+
+const touchCompact = navigator.maxTouchPoints > 0 && window.innerWidth < 1200;
+if (touchCompact) document.body.classList.add("compact-operator");
+
 $("#inspect").addEventListener("click", () => void inspectEntity());
 entityInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") void inspectEntity();
@@ -833,7 +893,11 @@ $("#timeline-30").addEventListener("click", () => void loadTimeline(30));
 $("#refresh").addEventListener("click", () => void refreshMap());
 analysisTimeInput.addEventListener("change", () => void refreshMap());
 $("#layer-entities").addEventListener("change", setLayerVisibility);
-$("#layer-labels").addEventListener("change", setLayerVisibility);
+$("#layer-labels").addEventListener("change", () => {
+  setLayerVisibility();
+  updateAircraftPresentation();
+  updateSatellitePresentation();
+});
 $("#layer-aircraft").addEventListener("change", () => void refreshLiveLayers());
 $("#layer-satellites").addEventListener("change", () => void refreshLiveLayers());
 $("#layer-earthquakes").addEventListener("change", () => void refreshLiveLayers());
@@ -894,6 +958,7 @@ $("#reset-view").addEventListener("click", () => viewer.camera.setView({ destina
 
 let cameraTimer: number | undefined;
 viewer.camera.changed.addEventListener(() => {
+  updateAircraftPresentation();
   window.clearTimeout(cameraTimer);
   cameraTimer = window.setTimeout(() => void refreshMap(), 650);
 });
