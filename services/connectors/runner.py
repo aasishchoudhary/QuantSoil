@@ -63,6 +63,7 @@ class ConnectorRunner:
         started = now or utc_now()
         seen = accepted = rejected = 0
         error = error_type = None
+        retry_after_seconds = None
         attempts = 0
         self.last_audit = None
         self.last_rejections = []
@@ -105,6 +106,7 @@ class ConnectorRunner:
                 break
             except RetryableConnectorError as exc:
                 error, error_type = f"{type(exc).__name__}: {exc}", type(exc).__name__
+                retry_after_seconds = exc.retry_after.total_seconds() if exc.retry_after is not None else None
                 if attempt == self.retry_policy.max_attempts:
                     self._health_failure(spec.source, started)
                     break
@@ -115,7 +117,10 @@ class ConnectorRunner:
                 break
 
         finished = max(now or utc_now(), started)
-        run = ConnectorRun(spec.source, started, finished, seen, accepted, rejected, error, attempts, error_type)
+        run = ConnectorRun(
+            spec.source, started, finished, seen, accepted, rejected,
+            error, attempts, error_type, retry_after_seconds,
+        )
         audit = IngestionAudit(
             run_id=f"run_{spec.source}_{started.isoformat()}", source=spec.source,
             started_at=started, finished_at=finished, records_seen=seen,
