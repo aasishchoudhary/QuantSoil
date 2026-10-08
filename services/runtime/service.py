@@ -91,6 +91,7 @@ def create_app() -> FastAPI:
     state = {
         "started": False, "stop": threading.Event(), "thread": None,
         "connection": None, "connector_count": 0,
+        "analyst_app": create_unavailable_app(),
     }
 
     @asynccontextmanager
@@ -98,10 +99,10 @@ def create_app() -> FastAPI:
         try:
             connection, registry, connectors, queue, scheduler, worker = build_components()
         except Exception as exc:
-            # Keep the HTTP contract mounted even when infrastructure is unavailable.
-            # /health/live remains process liveness; /health/ready and analyst endpoints
-            # explicitly report dependency degradation instead of returning misleading 404s.
-            app.mount("/v1/analyst", create_unavailable_app())
+            # The route is mounted before lifespan startup. Swap only the delegate here;
+            # mounting routes during lifespan can be invisible to an already-built
+            # Starlette middleware stack and produce a misleading 404.
+            state["analyst_app"] = create_unavailable_app()
             emit(RuntimeEvent("runtime_start_failed", datetime.now(timezone.utc),
                               error_type=type(exc).__name__))
             yield
@@ -111,9 +112,9 @@ def create_app() -> FastAPI:
         state["connector_count"] = len(connectors)
         map_repository = PostgresMapRepository(connection)
         analyst_service = AnalystService(PostgresWorldStateRepository(connection), map_repository)
-        app.mount("/v1/analyst", create_analyst_app(
+        state["analyst_app"] = create_analyst_app(
             analyst_service, PostgresAnalystAuditRepository(connection)
-        ))
+        )
         app.mount("/v1/map", create_map_app(map_repository))
         state["started"] = True
 
@@ -160,6 +161,13 @@ def create_app() -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
+
+    async def analyst_dispatch(scope, receive, send):
+        await state["analyst_app"](scope, receive, send)
+
+    # Mount once during application construction. The delegate is swapped during
+    # lifespan startup so degraded and ready states keep the same HTTP contract.
+    app.mount("/v1/analyst", analyst_dispatch)
 
     @app.get("/health/live")
     def live():
