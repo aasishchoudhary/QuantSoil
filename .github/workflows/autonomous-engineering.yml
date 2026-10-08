@@ -68,39 +68,49 @@ jobs:
           aws-region: ap-south-1
           role-session-name: gods-eye-${{ github.run_id }}
 
-      - name: Select authorized Bedrock model
+      - name: Select authorized Bedrock inference profile
         if: steps.gate.outputs.proceed == 'true'
         id: model
         env:
           AWS_REGION: ap-south-1
         run: |
           aws sts get-caller-identity
-          python - <<'PY' >> "$GITHUB_OUTPUT"
-          import json, os, subprocess
-          candidates = [
-              "amazon.nova-lite-v1:0",
-              "amazon.nova-micro-v1:0",
-          ]
-          for model_id in candidates:
-              p = subprocess.run(
-                  ["aws", "bedrock", "get-foundation-model-availability",
-                   "--region", os.environ["AWS_REGION"],
-                   "--model-id", model_id, "--output", "json"],
-                  text=True, capture_output=True
-              )
-              if p.returncode != 0:
-                  print(f"MODEL_CHECK_FAILED {model_id}: {p.stderr.strip()}")
-                  continue
-              data = json.loads(p.stdout)
-              status = data.get("authorizationStatus")
-              print(f"MODEL_CHECK {model_id}: authorizationStatus={status}")
-              if status == "AUTHORIZED":
-                  print(f"model_id={model_id}")
-                  raise SystemExit(0)
-          raise SystemExit("No authorized bounded-agent Bedrock model is available; Nova Pro is NOT_AUTHORIZED and will not be retried.")
-          PY
-          echo "Selected authorized Bedrock model: $(grep '^model_id=' "$GITHUB_OUTPUT" | cut -d= -f2-)"
+          python - <<'PY' > /tmp/model.txt
+          import json, os, subprocess, sys
 
+          region = os.environ["AWS_REGION"]
+          preferred = {
+              "apac.amazon.nova-lite-v1:0",
+              "apac.amazon.nova-micro-v1:0",
+          }
+
+          p = subprocess.run(
+              ["aws", "bedrock", "list-inference-profiles",
+               "--region", region, "--type-equals", "SYSTEM_DEFINED",
+               "--output", "json", "--no-cli-pager"],
+              text=True, capture_output=True, check=False,
+          )
+          if p.returncode != 0:
+              print(p.stderr.strip(), file=sys.stderr)
+              raise SystemExit("Unable to discover Bedrock inference profiles")
+
+          data = json.loads(p.stdout)
+          active = {
+              item.get("inferenceProfileId")
+              for item in data.get("inferenceProfileSummaries", [])
+              if item.get("status") == "ACTIVE"
+          }
+          for model_id in sorted(preferred):
+              if model_id in active:
+                  print(model_id)
+                  raise SystemExit(0)
+          raise SystemExit(
+              "No ACTIVE APAC Nova Lite/Micro system-defined inference profile "
+              "is available in ap-south-1"
+          )
+          PY
+          echo "model_id=$(cat /tmp/model.txt)" >> "$GITHUB_OUTPUT"
+          echo "Selected authorized Bedrock inference profile: $(cat /tmp/model.txt)"
       - name: Install autonomy dependencies
         if: steps.gate.outputs.proceed == 'true'
         run: python -m pip install --upgrade pip && python -m pip install -e ".[test,autonomy]"
