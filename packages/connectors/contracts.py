@@ -87,6 +87,7 @@ class ConnectorRun:
     error: str | None = None
     attempts: int = 1
     error_type: str | None = None
+    retry_after_seconds: float | None = None
 
     def __post_init__(self) -> None:
         if self.started_at.tzinfo is None or self.finished_at.tzinfo is None:
@@ -99,6 +100,8 @@ class ConnectorRun:
             raise ConnectorError("accepted + rejected cannot exceed records seen")
         if self.attempts < 1:
             raise ConnectorError("attempts must be >= 1")
+        if self.retry_after_seconds is not None and self.retry_after_seconds < 0:
+            raise ConnectorError("retry_after_seconds cannot be negative")
 
 
 def utc_now() -> datetime:
