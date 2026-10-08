@@ -36,6 +36,17 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
           env:
             - name: DATABASE_URL
               valueFrom:
