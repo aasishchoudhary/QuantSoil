@@ -31,6 +31,27 @@ def create_app(service: AnalystService) -> FastAPI:
             },
         }
 
+    @app.get("/v1/analyst/spatial")
+    def spatial(
+        bbox: str = Query(..., description="minLon,minLat,maxLon,maxLat"),
+        at: datetime | None = Query(default=None),
+        limit: int = Query(default=500, ge=1, le=5000),
+    ) -> dict[str, Any]:
+        try:
+            parts = tuple(float(x.strip()) for x in bbox.split(","))
+            result = service.spatial(parts, at=at, limit=limit)
+        except (ValueError, AnalystQueryError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return {
+            "type": "FeatureCollection",
+            "generated_at": datetime.now().astimezone().isoformat(),
+            "count": len(result.features),
+            "features": [
+                item.to_geojson() if hasattr(item, "to_geojson") else item
+                for item in result.features
+            ],
+        }
+
     @app.get("/v1/analyst/timeline/{entity_id}")
     def timeline(entity_id: str, start: datetime = Query(...), end: datetime = Query(...)) -> dict[str, Any]:
         try:
