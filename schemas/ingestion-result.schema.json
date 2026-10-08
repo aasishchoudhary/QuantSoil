@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gods-eye-world-intelligence.dev/schemas/ingestion-result.schema.json",
+  "title": "Ingestion Result",
+  "type": "object",
+  "required": ["status", "duplicate", "accepted"],
+  "properties": {
+    "status": {"enum": ["accepted", "stale", "invalid"]},
+    "duplicate": {"type": "boolean"},
+    "accepted": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}
