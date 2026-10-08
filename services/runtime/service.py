@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from packages.connectors.usgs import USGSEarthquakeConnector
 from packages.connectors.noaa import NOAAWeatherAlertsConnector
+from packages.connectors.nasa_eonet import NASAEONETConnector
 from packages.connectors.registry import SourceRegistry
 from packages.repositories.evidence_payload_s3 import S3EvidencePayloadStore
 from packages.repositories.evidence_postgres import PostgresEvidenceRepository
@@ -45,7 +46,10 @@ def build_components():
     noaa = NOAAWeatherAlertsConnector(
         user_agent=os.getenv("NWS_USER_AGENT", "GodsEyeWorldIntelligence/0.1")
     )
-    for connector in (usgs, noaa):
+    eonet = NASAEONETConnector(
+        user_agent=os.getenv("NASA_EONET_USER_AGENT", "GodsEyeWorldIntelligence/0.1")
+    )
+    for connector in (usgs, noaa, eonet):
         registry.register(connector.spec)
     connectors = {usgs.spec.source: usgs, noaa.spec.source: noaa}
 
@@ -82,7 +86,6 @@ def build_components():
 
 def create_app() -> FastAPI:
     app = FastAPI(title="God's Eye World Intelligence Runtime", version="0.1.0")
-    analyst_connection = None
     state = {
         "started": False, "stop": threading.Event(), "thread": None,
         "connection": None, "connector_count": 0,
