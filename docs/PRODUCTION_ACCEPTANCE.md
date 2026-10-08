@@ -66,3 +66,13 @@ These cannot honestly be marked PASS from source control alone:
 The system is production-ready candidate only when repository CI is green and every applicable target-infrastructure gate above has an attached execution result.
 
 Do not convert documentation into a deployment claim.
+
+
+### S3 evidence infrastructure
+
+The repository now contains an explicit Terraform baseline for the evidence bucket
+under infrastructure/aws/evidence/. The baseline enables S3 Versioning and Object
+Lock, uses server-side encryption, blocks public access, and denies non-TLS
+requests. The runtime still requires a least-privilege workload identity to be
+granted write/read permissions separately. Applying and verifying this Terraform
+in the target AWS account remains an infrastructure acceptance gate.
