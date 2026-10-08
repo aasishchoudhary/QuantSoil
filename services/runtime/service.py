@@ -53,7 +53,7 @@ def build_components():
     )
     for connector in (usgs, noaa, eonet):
         registry.register(connector.spec)
-    connectors = {usgs.spec.source: usgs, noaa.spec.source: noaa}
+    connectors = {connector.spec.source: connector for connector in (usgs, noaa, eonet)}
 
     queue = PostgresJobQueue(connection)
     health = PostgresSourceHealthRepository(connection)
