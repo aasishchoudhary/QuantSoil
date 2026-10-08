@@ -31,3 +31,21 @@ def test_source_record_rejects_bad_time_order():
         assert False
     except ConnectorError:
         pass
+
+from packages.connectors.contracts import USGSEarthquakeConnector
+
+def test_usgs_connector_normalizes_geojson_event():
+    document = {
+        "type": "FeatureCollection",
+        "metadata": {"generated": 1770000000000},
+        "features": [{
+            "type": "Feature",
+            "id": "us123",
+            "properties": {"time": 1769999999000, "mag": 4.2},
+            "geometry": {"type": "Point", "coordinates": [85.0, 25.0, 10.0]}
+        }]
+    }
+    records = list(USGSEarthquakeConnector(fetcher=lambda _: document).fetch())
+    assert len(records) == 1
+    assert records[0].source_record_id == "us123"
+    assert records[0].payload["feature"]["geometry"]["coordinates"][0] == 85.0
