@@ -167,7 +167,7 @@ jobs:
         if: steps.gate.outputs.proceed == 'true'
         env:
           GODS_EYE_TASK: ${{ steps.task.outputs.task }}
-          GODS_EYE_MODEL_ID: amazon.nova-pro-v1:0
+          GODS_EYE_MODEL_ID: apac.amazon.nova-pro-v1:0
           AWS_REGION: ap-south-1
         run: python scripts/autonomy/agent.py
 
