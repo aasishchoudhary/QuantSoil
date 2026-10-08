@@ -21,4 +21,4 @@ def test_build_components_registers_all_public_connectors(monkeypatch):
     monkeypatch.setattr("services.runtime.service.S3EvidencePayloadStore",EPayload)
     _, registry, connectors, _, _, _ = build_components()
     assert len(connectors)==3
-    assert set(connectors)==set(registry.list_sources())
+    assert set(connectors)=={spec.source for spec in registry.all()}
