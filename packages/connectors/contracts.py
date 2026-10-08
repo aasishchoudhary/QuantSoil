@@ -57,21 +57,21 @@ class SourceRecord:
 class Connector(Protocol):
     spec: SourceSpec
 
-    @staticmethod
-    def _default_fetch(url: str) -> Mapping[str, Any]:
-        request = Request(url, headers={"User-Agent": "gods-eye-world-intelligence/0.1"})
-        try:
-            with urlopen(request, timeout=15) as response:
-                if response.status != 200:
-                    raise ConnectorError(f"HTTP status {response.status}")
-                return json.loads(response.read().decode("utf-8"))
-        except ConnectorError:
-            raise
-        except Exception as exc:
-            raise ConnectorError(f"transport failure: {type(exc).__name__}") from exc
-
     def fetch(self, *, since: datetime | None = None) -> Iterable[SourceRecord]:
         """Fetch source records without mutating authoritative state."""
+
+
+def _default_fetch(url: str) -> Mapping[str, Any]:
+    request = Request(url, headers={"User-Agent": "gods-eye-world-intelligence/0.1"})
+    try:
+        with urlopen(request, timeout=15) as response:
+            if response.status != 200:
+                raise ConnectorError(f"HTTP status {response.status}")
+            return json.loads(response.read().decode("utf-8"))
+    except ConnectorError:
+        raise
+    except Exception as exc:
+        raise ConnectorError(f"transport failure: {type(exc).__name__}") from exc
 
 
 @dataclass(frozen=True)
@@ -165,7 +165,7 @@ class USGSEarthquakeConnector:
         self._fetcher = fetcher
 
     def fetch(self, *, since: datetime | None = None) -> Iterable[SourceRecord]:
-        fetcher = self._fetcher or self._default_fetch
+        fetcher = self._fetcher or _default_fetch
         document = fetcher(self.url)
         if not isinstance(document, Mapping) or document.get("type") != "FeatureCollection":
             raise ConnectorError("invalid USGS GeoJSON FeatureCollection")
