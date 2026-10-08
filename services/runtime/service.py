@@ -2,7 +2,6 @@
 from __future__ import annotations
 import os
 import threading
-import time
 from datetime import timedelta, timezone, datetime
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -16,7 +15,6 @@ from packages.repositories.source_health_postgres import PostgresIngestionAuditR
 from services.connectors.runner import ConnectorRunner
 from services.connectors.retry import RetryPolicy
 from services.ingestion.observation import ObservationIngestor
-from services.runtime.contracts import RuntimeReadiness
 from services.runtime.health import HealthStatus, check_database
 from services.runtime.postgres import PostgresJobQueue
 from services.runtime.scheduler import RuntimeScheduler, SourceSchedule
