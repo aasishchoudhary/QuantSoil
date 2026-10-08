@@ -38,3 +38,14 @@ def test_readiness_requires_all_dependencies():
 def test_worker_policy_bounds_attempts():
     p=WorkerPolicy(max_attempts=3)
     assert p.max_attempts==3
+
+
+def test_expired_lease_is_reclaimed():
+    t=datetime(2026,1,1,tzinfo=timezone.utc)
+    q=InMemoryJobQueue()
+    q.enqueue(RuntimeJob("j","source","key",t))
+    first=q.claim(now=t,lease=timedelta(minutes=1))
+    second=q.claim(now=t+timedelta(minutes=2),lease=timedelta(minutes=1))
+    assert first.status is JobStatus.RUNNING
+    assert second.job_id=="j"
+    assert second.attempts==2
