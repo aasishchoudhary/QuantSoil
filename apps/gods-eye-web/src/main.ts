@@ -4,9 +4,11 @@ import {
   Cartesian2,
   JulianDate,
   SampledPositionProperty,
+  ClockRange,
   BillboardGraphics,
   PropertyBag,
   Color,
+  LabelStyle,
   ConstantProperty,
   PathGraphics,
   GeoJsonDataSource,
@@ -179,6 +181,7 @@ const JET_ICON = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg 
 const ROTOR_ICON = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="34" r="12" fill="#75d6ff" stroke="#07131d" stroke-width="3"/><path d="M8 18 Q32 10 56 18 M8 50 Q32 58 56 50 M32 5 L32 59" fill="none" stroke="#75d6ff" stroke-width="4"/></svg>`);
 const SATELLITE_ICON = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"><path d="M24 4 L44 24 L24 44 L4 24 Z" fill="#c084fc" stroke="#120b1c" stroke-width="3"/><circle cx="24" cy="24" r="5" fill="#fff"/></svg>`);
 const AIRCRAFT_REFRESH_MS = 10000;
+const SATELLITE_REFRESH_MS = 300000;
 let requestSeq = 0;
 let lastFeatures: any[] = [];
 let runtimeReady = false;
@@ -319,6 +322,7 @@ async function refreshAircraft(): Promise<void> {
   if (!liveClockInitialized) {
     viewer.clock.currentTime = JulianDate.fromDate(new Date());
     viewer.clock.multiplier = 1;
+    viewer.clock.clockRange = ClockRange.UNBOUNDED;
     viewer.clock.shouldAnimate = true;
     liveClockInitialized = true;
   }
@@ -380,7 +384,7 @@ async function refreshAircraft(): Promise<void> {
       label: {
         text: aircraftLabel(props, icao),
         font: "11px monospace",
-        style: 1,
+        style: LabelStyle.FILL_AND_OUTLINE,
         show: ($("#layer-labels") as HTMLInputElement).checked,
         showBackground: true,
         backgroundColor: Color.fromCssColorString("rgba(4,12,18,0.78)"),
@@ -441,6 +445,7 @@ async function refreshSatellites(): Promise<void> {
     viewer.clock.shouldAnimate = true;
     liveClockInitialized = true;
   } else {
+    viewer.clock.clockRange = ClockRange.UNBOUNDED;
     viewer.clock.shouldAnimate = true;
   }
 
@@ -841,6 +846,9 @@ window.setInterval(() => {
     viewer.clock.shouldAnimate = true;
   }
 }, AIRCRAFT_REFRESH_MS);
+window.setInterval(() => {
+  if (runtimeReady && ($("#layer-satellites") as HTMLInputElement).checked) void refreshSatellites();
+}, SATELLITE_REFRESH_MS);
 $("#layer-weather").addEventListener("change", async () => {
   if (!(($("#layer-weather") as HTMLInputElement).checked)) return;
   const data = await requestJson("/v1/live/weather?lat=23.3441&lon=85.3096");
