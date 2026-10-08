@@ -51,10 +51,11 @@ def test_postgres_queue_is_idempotent_and_fences_stale_workers(db):
     assert first is not None
     assert first.attempts == 1
 
+    recovered = queue.claim(now=now + timedelta(minutes=2), lease=timedelta(minutes=1))
+    assert recovered is not None
+
     with pytest.raises(RuntimeError):
         queue.complete(first.success())
-
-    recovered = queue.claim(now=now + timedelta(minutes=2), lease=timedelta(minutes=1))
     assert recovered is not None
     assert recovered.attempts == 2
     queue.complete(recovered.success())
