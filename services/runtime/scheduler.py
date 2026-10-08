@@ -16,7 +16,7 @@ _NAMESPACE = UUID("f2a6d0b0-6c2a-4d1e-9a4b-2b0c2b4b5e91")
 class SourceSchedule:
     source: str
     interval: timedelta
-    max_catch_up: int = 1
+    max_catch_up: int = 0
 
     def __post_init__(self) -> None:
         if not self.source.strip() or self.interval <= timedelta(0):
