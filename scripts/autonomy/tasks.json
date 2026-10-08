@@ -1,15 +1,10 @@
 {
-  "version": 5,
+  "version": 6,
   "tasks": [
     {
       "id": "public-source-expansion",
       "priority": 30,
       "goal": "Add governed public connectors for weather, disaster, and geospatial feeds using explicit license metadata, schemas, fixtures, and source-health monitoring."
-    },
-    {
-      "id": "production-runtime",
-      "priority": 70,
-      "goal": "Add persistent queue/stream integration, deployment manifests, health/readiness, backup/recovery procedures, and operational runbooks."
     },
     {
       "id": "analyst-layer",
