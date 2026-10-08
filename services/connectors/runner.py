@@ -84,6 +84,10 @@ class ConnectorRunner:
                     else:
                         rejected += 1
                         self.last_rejections.append(RejectedRecord(
+                            rejection_id=RejectedRecord.deterministic_id(
+                                f"run_{spec.source}_{started.isoformat()}", spec.source,
+                                record.source_record_id, result.evidence.raw_payload_hash,
+                            ),
                             run_id=f"run_{spec.source}_{started.isoformat()}",
                             source=spec.source,
                             source_record_id=record.source_record_id,
@@ -92,6 +96,7 @@ class ConnectorRunner:
                             reasons=result.quality.reasons or (("duplicate",) if result.duplicate else ("rejected",)),
                             observed_at=record.observed_at,
                             rejected_at=started,
+                            payload=record.payload,
                         ))
                 self._health_success(spec.source, started)
                 break
