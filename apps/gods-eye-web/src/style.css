@@ -126,3 +126,66 @@ pre{margin:0;padding:11px;color:#9db2be;font:9px/1.6 ui-monospace,monospace;whit
 .module-btn:hover{border-color:rgba(72,214,176,.7);color:#e9fffa;background:rgba(72,214,176,.08)}
 .map-stage.flir-mode #globe{filter:sepia(1) hue-rotate(80deg) saturate(5) contrast(1.25) brightness(.9)}
 .map-stage.flir-mode:after{content:"FLIR / THERMAL VISUALIZATION";position:absolute;top:48px;left:50%;transform:translateX(-50%);z-index:8;padding:4px 9px;border:1px solid rgba(255,153,0,.45);background:rgba(20,10,0,.72);color:#ffb454;font:700 9px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;pointer-events:none}
+
+
+/* Responsive operator layout */
+.mobile-only{display:none}
+@media (max-width:800px){
+  .topbar{height:52px}
+  .brand{padding:0 10px;gap:8px}
+  .brand strong{font-size:11px}
+  .brand span{font-size:7px;margin-top:4px}
+  .system-status{font-size:8px;padding:0 9px}
+  .workspace{height:calc(100vh - 81px);min-height:0}
+  .map-stage{height:100%;min-height:0}
+  .left-rail,.right-panel{
+    position:absolute;
+    top:0;
+    bottom:0;
+    width:min(88vw,320px);
+    max-width:320px;
+    overflow:auto;
+    -webkit-overflow-scrolling:touch;
+    z-index:30;
+  }
+  .left-rail{
+    left:0;
+    transform:translateX(-102%);
+    transition:transform .2s ease;
+  }
+  .right-panel{
+    right:0;
+    transform:translateX(102%);
+    transition:transform .2s ease;
+  }
+  body.mobile-left-open .left-rail{transform:translateX(0)}
+  body.mobile-right-open .right-panel{transform:translateX(0)}
+  body.mobile-left-open:after,
+  body.mobile-right-open:after{
+    content:"";
+    position:fixed;
+    inset:52px 0 29px;
+    background:rgba(0,0,0,.48);
+    z-index:25;
+  }
+  .panel-section{padding:14px 12px}
+  .map-overlay.top-left{left:8px;top:8px}
+  .map-overlay.top-right{right:8px;top:8px}
+  .scale{left:8px;bottom:8px}
+  .map-empty{width:min(320px,86%);padding:18px}
+  .map-empty h1{font-size:15px}
+  .map-empty p{font-size:9px}
+  .inspector-head{padding:14px 12px}
+  .inspector-body{padding:12px}
+  .bottombar{padding:0 8px;font-size:6px}
+}
+
+/* Avoid forcing a tall desktop triptych on narrow portrait devices. */
+@media (max-width:520px){
+  .workspace{height:calc(100vh - 81px)}
+  .left-rail,.right-panel{width:92vw;max-width:none}
+  .module-grid{gap:5px}
+  .module-btn{min-height:34px;font-size:8px}
+  .toggle{padding:7px 0}
+  .quick-actions button{min-height:32px}
+}
