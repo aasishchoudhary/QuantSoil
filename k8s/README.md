@@ -38,3 +38,7 @@ Back up PostgreSQL with a PITR-capable managed policy and regularly test restore
 Alert on readiness failures, repeated connector `error_type` values, jobs stuck in `running` past lease expiry, increasing `failed` jobs, rejected/stale records, evidence-payload persistence failures, and database connection failures.
 
 Use UTC timestamps throughout the runtime and retain structured logs centrally.
+
+## Recovery scripts
+
+Use `scripts/backup_postgres.sh` for custom-format backups and `scripts/restore_postgres.sh` only against an isolated recovery target. Restore is intentionally guarded by `ALLOW_DESTRUCTIVE_RESTORE=1`. After restore, run schema validation, evidence hash verification, replay/evaluation gates, and analyst integration tests before routing traffic.
