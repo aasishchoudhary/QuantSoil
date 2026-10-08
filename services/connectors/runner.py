@@ -97,7 +97,7 @@ class ConnectorRunner:
             run_id=f"run_{spec.source}_{started.isoformat()}", source=spec.source,
             started_at=started, finished_at=finished, records_seen=seen,
             records_accepted=accepted, records_rejected=rejected, attempts=attempts,
-            error_type=(type(error).__name__ if error else None),
+            error_type=(error.split(':', 1)[0] if error else None),
         )
         return run
 
