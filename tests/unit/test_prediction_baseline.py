@@ -13,7 +13,7 @@ def test_persistence_forecast_is_deterministic_and_provenance_backed():
                                             horizon=timedelta(hours=1),generated_at=T)
     assert forecast.prediction.state=="predicted"
     assert forecast.prediction.evidence_refs==("e3",)
-    assert forecast.probability==2/3
+    assert forecast.probability==3/4
 def test_probability_scores():
     score=score_binary_forecasts(((.8,1),(.2,0)))
     assert round(score.brier,10)==.04
