@@ -53,7 +53,7 @@ def main() -> int:
     if not migration_paths:
         fail("no SQL migration files found in migrations/ or db/migrations/")
     numbered = []
-    pattern = re.compile(r"^(\\d+)(?:[_-]|$)")
+    pattern = re.compile(r"^(\d+)(?:[_-]|$)")
     for path in migration_paths:
         match = pattern.match(path.stem)
         if not match:
