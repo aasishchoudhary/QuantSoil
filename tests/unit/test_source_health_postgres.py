@@ -28,3 +28,15 @@ def test_source_health_round_trip():
     assert repo.put(health) == health
     assert repo.get("sensor") == health
     assert conn.commits == 1
+
+from packages.connectors.contracts import IngestionAudit, RejectedRecord
+from packages.repositories.source_health_postgres import PostgresIngestionAuditRepository
+
+def test_ingestion_audit_repository_writes_run_and_rejection():
+    conn = Connection()
+    repo = PostgresIngestionAuditRepository(conn)
+    audit = IngestionAudit("run_test", "sensor", T, T, 1, 0, 1, 1, "TimeoutError")
+    rejection = RejectedRecord("run_test:r1:abc", "run_test", "sensor", "r1", "abc", "stale", ("old",), T, T)
+    assert repo.put_run(audit) == audit
+    assert repo.put_rejection(rejection) == rejection
+    assert conn.commits == 2
