@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 try:
-    from fastapi import FastAPI, HTTPException, Query
+    from fastapi import FastAPI, HTTPException, Query, Response
 except ImportError:  # pragma: no cover
     FastAPI = None  # type: ignore[assignment]
 
@@ -150,6 +150,19 @@ def create_app(repository: InMemoryMapRepository | None = None):
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/v1/map/tiles/{z}/{x}/{y}.pbf")
+    def tile(z: int, x: int, y: int, at: datetime | None = Query(default=None)):
+        tile_fn = getattr(repo, "tile", None)
+        if tile_fn is None:
+            raise HTTPException(status_code=501, detail="vector tiles require the PostGIS repository")
+        if at is not None and at.tzinfo is None:
+            raise HTTPException(status_code=400, detail="at must include a timezone offset")
+        try:
+            payload = tile_fn(z, x, y, at)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return Response(content=payload, media_type="application/vnd.mapbox-vector-tile")
 
     @app.get("/v1/map/features")
     def features(
