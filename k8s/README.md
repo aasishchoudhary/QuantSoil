@@ -42,3 +42,7 @@ Use UTC timestamps throughout the runtime and retain structured logs centrally.
 ## Recovery scripts
 
 Use `scripts/backup_postgres.sh` for custom-format backups and `scripts/restore_postgres.sh` only against an isolated recovery target. Restore is intentionally guarded by `ALLOW_DESTRUCTIVE_RESTORE=1`. After restore, run schema validation, evidence hash verification, replay/evaluation gates, and analyst integration tests before routing traffic.
+
+## Network isolation
+
+Apply `k8s/namespace.yaml` and `k8s/network-policy.yaml` with the database namespace/pod labels adjusted to the actual PostgreSQL deployment. The default policy denies ingress/egress; only runtime-to-database, runtime-to-HTTPS provider access, DNS, and web-to-runtime traffic should be allowed. Validate policies in the target cluster before rollout.
