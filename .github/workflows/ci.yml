@@ -40,6 +40,15 @@ jobs:
       - name: Validate Python sources
         run: python -m compileall -q packages services tests
 
+      - name: Validate Terraform formatting
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.3"
+
+      - name: Check Terraform formatting
+        working-directory: infrastructure/aws/autonomy
+        run: terraform fmt -check
+
       - name: Validate Kubernetes manifests
         run: python -c 'import pathlib, yaml; [list(yaml.safe_load_all(p.read_text())) for p in pathlib.Path("k8s").glob("*.yaml")]'
 
