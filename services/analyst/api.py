@@ -1,12 +1,46 @@
 """HTTP API for read-only evidence-first analyst queries."""
 from __future__ import annotations
 from datetime import datetime, timezone
+import hashlib
+import json
+import logging
+import os
 from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from services.analyst.query import AnalystQueryError, AnalystService
 
+_LOG = logging.getLogger("gods_eye.analyst")
+
 def create_app(service: AnalystService) -> FastAPI:
     app = FastAPI(title="God's Eye World Intelligence — Analyst API", version="0.1.0")
+
+    @app.middleware("http")
+    async def security_and_audit(request, call_next):
+        correlation = request.headers.get("X-Correlation-ID") or hashlib.sha256(
+            f"{datetime.now(timezone.utc).isoformat()}:{request.url.path}".encode()
+        ).hexdigest()[:24]
+        if os.getenv("ANALYST_AUTH_MODE", "optional").lower() == "required":
+            expected = os.getenv("ANALYST_BEARER_TOKEN", "")
+            supplied = request.headers.get("Authorization", "")
+            if not expected or supplied != f"Bearer {expected}":
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail":"authentication required"},
+                    headers={"WWW-Authenticate":"Bearer", "X-Correlation-ID":correlation},
+                )
+        response = await call_next(request)
+        response.headers["X-Correlation-ID"] = correlation
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        _LOG.info(json.dumps({
+            "event":"analyst_request",
+            "method":request.method,
+            "path":request.url.path,
+            "status":response.status_code,
+            "correlation_id":correlation,
+        }, sort_keys=True, separators=(",",":")))
+        return response
 
     @app.get("/health")
     def health() -> dict[str, str]:
