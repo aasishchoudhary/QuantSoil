@@ -3,6 +3,7 @@ from services.runtime.service import build_components
 def test_build_components_registers_all_public_connectors(monkeypatch):
     class DummyConn: pass
     monkeypatch.setenv("DATABASE_URL","postgresql://unused")
+    monkeypatch.setenv("EVIDENCE_BUCKET","test-bucket")
     monkeypatch.setattr("services.runtime.service._database_factory",lambda:DummyConn())
     class Queue:
         def __init__(self,connection): pass
