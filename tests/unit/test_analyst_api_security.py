@@ -22,6 +22,6 @@ def test_required_auth_rejects_missing_token(monkeypatch):
     monkeypatch.setenv("ANALYST_AUTH_MODE","required")
     monkeypatch.setenv("ANALYST_BEARER_TOKEN","test-token")
     client=TestClient(create_app(service()))
-    response=client.get("/health")
+    response=client.get("/snapshot", params={"entity_ids":"missing","at":"2026-01-01T00:00:00Z"})
     assert response.status_code==401
     assert response.headers["www-authenticate"]=="Bearer"
