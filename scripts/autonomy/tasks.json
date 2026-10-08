@@ -4,12 +4,12 @@
     {
       "id": "production-security-scale",
       "priority": 70,
-      "goal": "Complete gateway authorization, rate limiting, durable audit verification, vector-tile load/latency acceptance, backup restore drills, and production deployment verification."
+      "goal": "Complete environment-specific production acceptance: deploy an identity-aware OAuth/OIDC gateway with rate limiting and direct-backend network isolation; execute an isolated PostgreSQL backup/restore drill; and run measured map/query performance acceptance at production scale."
     },
     {
       "id": "predictive-evaluation",
       "priority": 75,
-      "goal": "Link predictions to realized outcomes, enforce horizon-aware evaluation, calibration reporting, drift detection, and model promotion gates."
+      "goal": "Verify durable forecast-to-outcome linkage after declared horizons, horizon-specific Brier/log-loss and calibration reporting, deterministic drift alerts, and enforced model-promotion thresholds using realized outcomes."
     }
   ]
 }
