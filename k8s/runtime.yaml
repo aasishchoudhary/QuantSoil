@@ -1,0 +1,120 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: world-intelligence-runtime
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: world-intelligence-runtime
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: world-intelligence-runtime
+  template:
+    metadata:
+      labels:
+        app: world-intelligence-runtime
+    spec:
+      serviceAccountName: world-intelligence-runtime
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: runtime
+          image: ghcr.io/aasishchoudhary/quantsoil:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: world-intelligence-runtime
+                  key: DATABASE_URL
+            - name: EVIDENCE_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: world-intelligence-runtime
+                  key: EVIDENCE_BUCKET
+            - name: NWS_USER_AGENT
+              value: GodsEyeWorldIntelligence/0.1
+            - name: RUNTIME_SOURCE_INTERVAL_SECONDS
+              value: "60"
+            - name: RUNTIME_MAX_CATCH_UP
+              value: "1"
+            - name: RUNTIME_MAX_ATTEMPTS
+              value: "3"
+            - name: RUNTIME_LEASE_SECONDS
+              value: "300"
+            - name: RUNTIME_RETRY_DELAY_SECONDS
+              value: "30"
+            - name: RUNTIME_WORKER_POLL_SECONDS
+              value: "1"
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: world-intelligence-runtime
+spec:
+  selector:
+    app: world-intelligence-runtime
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: world-intelligence-migrate
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: world-intelligence-runtime
+      containers:
+        - name: migrate
+          image: ghcr.io/aasishchoudhary/quantsoil:0.1.0
+          command: ["python", "-m", "services.runtime.migrate"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: world-intelligence-runtime
+                  key: DATABASE_URL
