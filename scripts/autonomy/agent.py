@@ -127,7 +127,7 @@ def main()->int:
         print("GODS_EYE_TASK is required")
         return 2
     region=os.environ.get("AWS_REGION","ap-south-1")
-    model_id=os.environ.get("GODS_EYE_MODEL_ID","amazon.nova-pro-v1:0")
+    model_id=os.environ.get("GODS_EYE_MODEL_ID","apac.amazon.nova-pro-v1:0")
     client=boto3.client("bedrock-runtime",region_name=region,
         config=Config(connect_timeout=30,read_timeout=3600,retries={"max_attempts":2}))
     system="""You are the bounded implementation agent for God's Eye World Intelligence.
