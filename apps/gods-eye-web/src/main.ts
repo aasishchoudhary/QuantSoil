@@ -1014,17 +1014,35 @@ $("#google-3d").addEventListener("click", async () => {
     console.warn(error);
   }
 });
-document.querySelectorAll<HTMLButtonElement>("[data-module]").forEach((button) => {
+const workspacePresets: Record<string, { title: string; layers: string[] }> = {
+  geolens: { title: "GEOLENS • SPATIAL CATALOG", layers: ["layer-entities", "layer-labels"] },
+  "world-monitor": { title: "WORLD MONITOR • GLOBAL CONTEXT", layers: ["layer-entities", "layer-aircraft", "layer-earthquakes"] },
+  "iron-sight": { title: "IRON SIGHT • CONFLICT MONITOR", layers: ["layer-entities", "layer-aircraft", "layer-ships"] },
+  pythia: { title: "PYTHIA • FORECAST WORKSPACE", layers: ["layer-entities", "layer-weather"] },
+  wanderer: { title: "WANDERER • TRAIL WORKSPACE", layers: ["layer-aircraft", "layer-satellites"] },
+  "open-meteo": { title: "OPEN-METEO • WEATHER CONTEXT", layers: ["layer-weather"] },
+};
+const profileButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-module]"));
+profileButtons.forEach((button) => {
+  button.setAttribute("aria-pressed", "false");
   button.addEventListener("click", () => {
-    const labels: Record<string, string> = {
-      geolens: "GEOLENS • SPATIAL CATALOG",
-      "world-monitor": "WORLD MONITOR • GLOBAL CONTEXT",
-      "iron-sight": "IRON SIGHT • CONFLICT MONITOR",
-      pythia: "PYTHIA • FORECAST WORKSPACE",
-      wanderer: "WANDERER • TRAIL WORKSPACE",
-      "open-meteo": "OPEN-METEO • WEATHER CONTEXT",
-    };
-    $("#mission-name").textContent = labels[button.dataset.module || ""] || "GLOBAL SITUATIONAL AWARENESS";
+    const preset = workspacePresets[button.dataset.module || ""];
+    if (!preset) return;
+    const enabled = new Set(preset.layers);
+    for (const id of ["layer-entities", "layer-aircraft", "layer-satellites", "layer-earthquakes", "layer-fires", "layer-ships", "layer-weather"]) {
+      const input = document.getElementById(id) as HTMLInputElement | null;
+      if (input) input.checked = enabled.has(id);
+    }
+    // Profiles change only the visible data layers; they do not claim to run
+    // forecasting, conflict detection, or other unimplemented analyst engines.
+    $("#mission-name").textContent = preset.title;
+    profileButtons.forEach((item) => {
+      const active = item === button;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", String(active));
+    });
+    setLayerVisibility();
+    void refreshLiveLayers();
   });
 });
 
