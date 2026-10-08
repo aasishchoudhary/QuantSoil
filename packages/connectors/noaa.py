@@ -21,7 +21,7 @@ class NOAAWeatherAlertsConnector:
         license_class="public/open",
         schema_version="nws-alerts-geojson-v1",
         parser_version="nws-alerts-parser-v1",
-        max_age_seconds=900,
+        max_age_seconds=None,
     )
 
     def __init__(
