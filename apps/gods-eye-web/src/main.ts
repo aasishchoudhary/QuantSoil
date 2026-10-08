@@ -1,4 +1,4 @@
-import {Viewer,Cartesian3,GeoJsonDataSource,Color,OpenStreetMapImageryProvider,EllipsoidTerrainProvider} from "cesium";
+import {Viewer,Cartesian3,GeoJsonDataSource,Color,ConstantProperty,OpenStreetMapImageryProvider,EllipsoidTerrainProvider} from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import "./style.css";
 
@@ -44,7 +44,7 @@ async function refreshMap(){
     const existing=viewer.dataSources.getByName("analyst")[0]; if(existing) viewer.dataSources.remove(existing,true);
     const ds=await GeoJsonDataSource.load(data,{clampToGround:false});
     ds.name="analyst";
-    ds.entities.values.forEach(e=>{if(e.point)e.point.color=Color.ORANGE;if(e.point)e.point.pixelSize=8;});
+    ds.entities.values.forEach(e=>{if(e.point)e.point.color=new ConstantProperty(Color.ORANGE);if(e.point)e.point.pixelSize=new ConstantProperty(8);});
     await viewer.dataSources.add(ds);
     status.textContent=`${data.count} FEATURES`;
   }catch(e){status.textContent="ANALYST OFFLINE"; results.textContent=String(e);}
