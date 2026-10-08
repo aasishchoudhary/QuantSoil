@@ -81,8 +81,8 @@ def test_local_evidence_store_is_content_addressed(tmp_path):
 
     class Record:
         raw_payload_hash = digest
-        payload = payload
 
+    Record.payload = payload
     store = LocalEvidencePayloadStore(str(tmp_path))
     uri, size = store.put(Record())
     assert uri.startswith("file://")
