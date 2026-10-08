@@ -8,6 +8,11 @@ log() { printf '\n[%s] %s\n' "$(date '+%H:%M:%S')" "$*"; }
 fail() { printf '\nFAIL: %s\n' "$*" >&2; exit 1; }
 
 command -v python >/dev/null || fail "Python is required: pkg install python"
+command -v pkg >/dev/null || fail "Termux pkg is required"
+if ! ldconfig -p 2>/dev/null | grep -q "libpq.so"; then
+  log "Installing PostgreSQL client library required by Psycopg"
+  pkg install -y libpq
+fi
 python - <<'PY'
 import sys
 if sys.version_info < (3, 12):
