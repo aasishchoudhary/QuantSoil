@@ -176,6 +176,7 @@ const dataSources = new Map<string, any>();
 const liveSources = new Map<string, any>();
 const aircraftEntities = new Map<string, Entity>();
 const aircraftSamples = new Map<string, JulianDate[]>();
+const aircraftPredictionTimes = new Map<string, JulianDate>();
 const aircraftLastSeen = new Map<string, number>();
 const satelliteEntities = new Map<string, Entity>();
 let liveClockInitialized = false;
@@ -277,6 +278,7 @@ function removeAircraftEntities(): void {
   for (const entity of aircraftEntities.values()) viewer.entities.remove(entity);
   aircraftEntities.clear();
   aircraftSamples.clear();
+  aircraftPredictionTimes.clear();
   aircraftLastSeen.clear();
 }
 
@@ -327,13 +329,27 @@ function updateAircraftSamples(
   property.forwardExtrapolationDuration = AIRCRAFT_STALE_SECONDS;
   const times = aircraftSamples.get(icao) || [];
   const lastTime = times[times.length - 1];
-  if (!lastTime || JulianDate.compare(sampleTime, lastTime) > 0) {
+  const sampleOrder = lastTime ? JulianDate.compare(sampleTime, lastTime) : 1;
+
+  // Provider caches can repeat timestamps. Ignore out-of-order observations,
+  // and replace equal-time samples instead of inserting duplicate timestamps
+  // into Cesium's sampled property (which can break interpolation and trails).
+  if (sampleOrder < 0) return;
+
+  const previousPrediction = aircraftPredictionTimes.get(icao);
+  if (previousPrediction) property.removeSample(previousPrediction);
+
+  if (sampleOrder === 0) {
+    property.removeSample(sampleTime);
     property.addSample(sampleTime, position);
-    times.push(sampleTime);
   } else {
     property.addSample(sampleTime, position);
+    times.push(sampleTime);
   }
+
   property.addSample(futureTime, futurePosition);
+  aircraftPredictionTimes.set(icao, futureTime);
+
   while (times.length > 18) {
     property.removeSample(times.shift()!);
   }
@@ -398,6 +414,7 @@ async function refreshAircraft(): Promise<void> {
     positionProperty.addSample(sampleTime, position);
     positionProperty.addSample(futureTime, futurePosition);
     aircraftSamples.set(icao, [sampleTime]);
+    aircraftPredictionTimes.set(icao, futureTime);
     aircraftLastSeen.set(icao, Date.now());
 
     const entity = viewer.entities.add({
@@ -460,6 +477,7 @@ async function refreshAircraft(): Promise<void> {
       viewer.entities.remove(entity);
       aircraftEntities.delete(icao);
       aircraftSamples.delete(icao);
+      aircraftPredictionTimes.delete(icao);
       aircraftLastSeen.delete(icao);
     }
   }
