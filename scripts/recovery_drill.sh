@@ -4,7 +4,8 @@ set -euo pipefail
 : "${DATABASE_URL:?DATABASE_URL is required}"
 workdir="${1:-$(mktemp -d)}"
 mkdir -p "$workdir"
-trap 'rm -rf "$workdir"' EXIT
+base_url="${DATABASE_URL%/*}"
+recovery_url="$base_url/$recovery_db"
 
 backup="$workdir/production-drill.dump"
 recovery_db="gods_eye_recovery_drill_$$"
@@ -20,8 +21,8 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "INSERT INTO public.recovery_drill_ma
 
 pg_dump --format=custom --no-owner --no-privileges --file "$backup" "$DATABASE_URL"
 pg_restore --list "$backup" >/dev/null
-ALLOW_DESTRUCTIVE_RESTORE=1 DATABASE_URL="${DATABASE_URL%/*}/$recovery_db" "$(dirname "$0")/restore_postgres.sh" "$backup"
+ALLOW_DESTRUCTIVE_RESTORE=1 DATABASE_URL="$recovery_url" "$(dirname "$0")/restore_postgres.sh" "$backup"
 
-marker="$(psql "$DATABASE_URL%/*/$recovery_db" -Atqc "SELECT marker FROM public.recovery_drill_marker WHERE id=1")"
+marker="$(psql "$recovery_url" -Atqc "SELECT marker FROM public.recovery_drill_marker WHERE id=1")"
 test "$marker" = "production-acceptance"
 printf 'PASS: isolated PostgreSQL backup/restore drill (%s)\n' "$recovery_db"
