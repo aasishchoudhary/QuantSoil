@@ -20,9 +20,9 @@ class Observation:
     source_record_id: str
     observed_at: datetime
     ingested_at: datetime
-    acquired_at: datetime | None = None
     payload: dict[str, Any]
     provenance: Provenance
+    acquired_at: datetime | None = None
 
     @staticmethod
     def payload_hash(payload: dict[str, Any]) -> str:
