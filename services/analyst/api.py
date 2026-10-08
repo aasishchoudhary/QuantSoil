@@ -12,7 +12,7 @@ from services.analyst.query import AnalystQueryError, AnalystService
 
 _LOG = logging.getLogger("gods_eye.analyst")
 
-def create_app(service: AnalystService) -> FastAPI:
+def create_app(service: AnalystService, audit_store=None) -> FastAPI:
     app = FastAPI(title="God's Eye World Intelligence — Analyst API", version="0.1.0")
 
     @app.middleware("http")
@@ -34,6 +34,17 @@ def create_app(service: AnalystService) -> FastAPI:
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
+        if audit_store is not None:
+            try:
+                audit_store.put(
+                    occurred_at=datetime.now(timezone.utc),
+                    method=request.method,
+                    path=request.url.path,
+                    status_code=response.status_code,
+                    correlation_id=correlation,
+                )
+            except Exception:
+                _LOG.exception("analyst audit persistence failed")
         _LOG.info(json.dumps({
             "event":"analyst_request",
             "method":request.method,
