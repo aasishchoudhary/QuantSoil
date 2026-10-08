@@ -152,7 +152,7 @@ class USGSEarthquakeConnector:
         license_class="public/open",
         schema_version="usgs-geojson-v1",
         parser_version="usgs-parser-v1",
-        max_age_seconds=180,
+        max_age_seconds=None,
     )
 
     def __init__(
