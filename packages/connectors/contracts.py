@@ -63,12 +63,12 @@ class Connector(Protocol):
         try:
             with urlopen(request, timeout=15) as response:
                 if response.status != 200:
-                    raise ConnectorError(f"USGS HTTP status {response.status}")
+                    raise ConnectorError(f"HTTP status {response.status}")
                 return json.loads(response.read().decode("utf-8"))
         except ConnectorError:
             raise
         except Exception as exc:
-            raise ConnectorError(f"USGS transport failure: {type(exc).__name__}") from exc
+            raise ConnectorError(f"transport failure: {type(exc).__name__}") from exc
 
     def fetch(self, *, since: datetime | None = None) -> Iterable[SourceRecord]:
         """Fetch source records without mutating authoritative state."""
@@ -83,6 +83,8 @@ class ConnectorRun:
     records_accepted: int
     records_rejected: int
     error: str | None = None
+    attempts: int = 1
+    error_type: str | None = None
 
     def __post_init__(self) -> None:
         if self.started_at.tzinfo is None or self.finished_at.tzinfo is None:
@@ -93,10 +95,13 @@ class ConnectorRun:
             raise ConnectorError("record counts cannot be negative")
         if self.records_accepted + self.records_rejected > self.records_seen:
             raise ConnectorError("accepted + rejected cannot exceed records seen")
+        if self.attempts < 1:
+            raise ConnectorError("attempts must be >= 1")
 
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
 
 @dataclass(frozen=True)
 class IngestionAudit:
@@ -109,6 +114,7 @@ class IngestionAudit:
     records_rejected: int
     attempts: int
     error_type: str | None = None
+
     def __post_init__(self) -> None:
         if self.started_at.tzinfo is None or self.finished_at.tzinfo is None:
             raise ConnectorError("audit timestamps must be timezone-aware")
@@ -130,14 +136,17 @@ class RejectedRecord:
     reasons: tuple[str, ...]
     observed_at: datetime
     rejected_at: datetime
+
     def __post_init__(self) -> None:
         if self.status not in {"stale", "invalid", "duplicate"}:
             raise ConnectorError("unsupported rejection status")
         if not self.reasons:
             raise ConnectorError("rejection reasons are required")
 
+
 class USGSEarthquakeConnector:
     """No-key USGS real-time GeoJSON summary connector."""
+
     spec = SourceSpec(
         source="usgs-earthquake-geojson",
         license_class="public/open",
@@ -146,23 +155,27 @@ class USGSEarthquakeConnector:
         max_age_seconds=180,
     )
 
-    def __init__(self, url: str = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson", *, fetcher=None):
+    def __init__(
+        self,
+        url: str = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson",
+        *,
+        fetcher=None,
+    ):
         self.url = url
         self._fetcher = fetcher
 
     def fetch(self, *, since: datetime | None = None) -> Iterable[SourceRecord]:
         fetcher = self._fetcher or self._default_fetch
         document = fetcher(self.url)
-        generated = document.get("metadata", {}).get("generated")
         if not isinstance(document, Mapping) or document.get("type") != "FeatureCollection":
             raise ConnectorError("invalid USGS GeoJSON FeatureCollection")
+        generated = document.get("metadata", {}).get("generated")
         for feature in document.get("features", []):
             if not isinstance(feature, Mapping):
                 continue
             properties = feature.get("properties", {})
-            geometry = feature.get("geometry", {})
             event_id = feature.get("id")
-            event_ms = properties.get("time")
+            event_ms = properties.get("time") if isinstance(properties, Mapping) else None
             if not event_id or not isinstance(event_ms, (int, float)):
                 continue
             observed_at = datetime.fromtimestamp(event_ms / 1000.0, tz=timezone.utc)
