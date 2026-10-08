@@ -46,6 +46,20 @@ jobs:
             echo "proceed=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Verify AWS role configuration before authentication
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          AWS_ROLE_ARN: ${{ vars.GODS_EYE_AWS_ROLE_ARN }}
+        run: |
+          if [ -z "$AWS_ROLE_ARN" ]; then
+            echo "::error::Repository variable GODS_EYE_AWS_ROLE_ARN is missing. Configure the GitHub repository variable before enabling autonomous Bedrock execution."
+            exit 1
+          fi
+          case "$AWS_ROLE_ARN" in
+            arn:aws:iam::*:role/*) ;;
+            *) echo "::error::GODS_EYE_AWS_ROLE_ARN is not a valid IAM role ARN."; exit 1 ;;
+          esac
+
       - name: Configure AWS credentials through OIDC
         if: steps.gate.outputs.proceed == 'true'
         uses: aws-actions/configure-aws-credentials@v6.3.0
@@ -53,20 +67,6 @@ jobs:
           role-to-assume: ${{ vars.GODS_EYE_AWS_ROLE_ARN }}
           aws-region: ap-south-1
           role-session-name: gods-eye-${{ github.run_id }}
-
-      - name: Verify AWS role configuration
-        if: steps.gate.outputs.proceed == 'true'
-        env:
-          AWS_ROLE_ARN: ${{ vars.GODS_EYE_AWS_ROLE_ARN }}
-        run: |
-          test -n "$AWS_ROLE_ARN" || {
-            echo "::error::Repository variable GODS_EYE_AWS_ROLE_ARN is missing."
-            exit 1
-          }
-          case "$AWS_ROLE_ARN" in
-            arn:aws:iam::*:role/*) ;;
-            *) echo "::error::GODS_EYE_AWS_ROLE_ARN is not a valid IAM role ARN."; exit 1 ;;
-          esac
 
       - name: Verify AWS identity and Bedrock model
         if: steps.gate.outputs.proceed == 'true'
@@ -98,25 +98,55 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python - <<'PY' > /tmp/task.json
-          import json, subprocess
+          import json
+          import subprocess
+
           tasks = json.load(open("scripts/autonomy/tasks.json", encoding="utf-8"))["tasks"]
+
+          def gh_json(args):
+              result = subprocess.run(
+                  ["gh", *args],
+                  text=True,
+                  capture_output=True,
+                  check=True,
+              )
+              return json.loads(result.stdout)
+
+          open_prs = gh_json([
+              "pr", "list", "--state", "open", "--limit", "100",
+              "--json", "number,title,body,headRefName"
+          ])
+          merged_prs = gh_json([
+              "pr", "list", "--state", "merged", "--limit", "100",
+              "--json", "number,title,body,headRefName"
+          ])
+
+          def task_already_tracked(task):
+              task_id = task["id"].lower()
+              title = f'feat(autonomy): advance {task["id"]}'.lower()
+              for pr in open_prs + merged_prs:
+                  haystack = " ".join([
+                      pr.get("title", ""),
+                      pr.get("body", "") or "",
+                      pr.get("headRefName", ""),
+                  ]).lower()
+                  if title in haystack or task_id in haystack:
+                      return True
+              return False
+
           for task in sorted(tasks, key=lambda x: x["priority"]):
-              title = f'feat(autonomy): advance {task["id"]}'
-              merged = subprocess.run(
-                  ["gh","pr","list","--state","merged","--search",f'"{title}"',
-                   "--json","number","--jq","length"],
-                  text=True, capture_output=True, check=True
-              )
-              open_pr = subprocess.run(
-                  ["gh","pr","list","--state","open","--search",f'"{title}"',
-                   "--json","number","--jq","length"],
-                  text=True, capture_output=True, check=True
-              )
-              if int(merged.stdout.strip() or "0") == 0 and int(open_pr.stdout.strip() or "0") == 0:
+              if not task_already_tracked(task):
                   print(json.dumps(task))
                   break
           else:
-              print(json.dumps({"id":"backlog-discovery","goal":"Inspect the repository against AGENTS.md and EVALUATION_POLICY.md. Select one missing production-critical implementation slice, implement it with tests, and document the evidence. Do not modify policy or workflow files."}))
+              print(json.dumps({
+                  "id": "backlog-discovery",
+                  "goal": (
+                      "Inspect the repository against AGENTS.md and EVALUATION_POLICY.md. "
+                      "Select one missing production-critical implementation slice, implement "
+                      "it with tests, and document the evidence. Do not modify policy or workflow files."
+                  ),
+              }))
           PY
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import json
