@@ -75,8 +75,11 @@ CREATE TABLE IF NOT EXISTS rejected_records (
     status TEXT NOT NULL CHECK (status IN ('stale','invalid','duplicate')),
     reasons JSONB NOT NULL CHECK (jsonb_typeof(reasons) = 'array'),
     observed_at TIMESTAMPTZ NOT NULL,
-    rejected_at TIMESTAMPTZ NOT NULL
+    rejected_at TIMESTAMPTZ NOT NULL,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
 CREATE INDEX IF NOT EXISTS idx_rejected_records_run ON rejected_records(run_id);
 CREATE INDEX IF NOT EXISTS idx_rejected_records_source_record ON rejected_records(source, source_record_id);
+
+ALTER TABLE rejected_records ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb;
