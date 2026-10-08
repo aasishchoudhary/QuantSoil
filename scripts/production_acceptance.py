@@ -29,6 +29,8 @@ REQUIRED = [
     "scripts/backup_postgres.sh",
     "scripts/restore_postgres.sh",
     "scripts/production_cluster_acceptance.sh",
+    "infrastructure/aws/evidence/main.tf",
+    "infrastructure/aws/evidence/variables.tf",
 ]
 
 
@@ -105,6 +107,18 @@ def main() -> int:
         if result.returncode:
             fail(f"{rel} has shell syntax errors: {result.stderr.strip()}")
 
+    evidence_tf = (ROOT / "infrastructure/aws/evidence/main.tf").read_text(encoding="utf-8")
+    for invariant in (
+        "object_lock_enabled = true",
+        'status = "Enabled"',
+        "aws_s3_bucket_public_access_block",
+        "aws_s3_bucket_server_side_encryption_configuration",
+        "DenyInsecureTransport",
+        'variable = "aws:SecureTransport"',
+    ):
+        if invariant not in evidence_tf:
+            fail(f"S3 evidence Terraform baseline missing invariant: {invariant}")
+
     forbidden = re.compile(r"(AKIA[0-9A-Z]{16}|-----BEGIN (RSA|EC|OPENSSH) PRIVATE KEY-----)")
     for rel in ("Dockerfile", "k8s/runtime.yaml", "k8s/web.yaml"):
         if forbidden.search((ROOT / rel).read_text(encoding="utf-8")):
@@ -112,7 +126,7 @@ def main() -> int:
 
     print("PASS: repository production acceptance invariants")
     print(f"PASS: migration chain ({len(numbered)} files): {", ".join(path.as_posix() for _, path in numbered)}")
-    print("PASS: schemas, Kubernetes hardening, network deny, shell syntax, secret scan")
+    print("PASS: schemas, Kubernetes hardening, network deny, S3 evidence baseline, shell syntax, secret scan")
     print("DEFERRED: target-cluster/OIDC/TLS/load/PITR acceptance requires real infrastructure")
     return 0
 
