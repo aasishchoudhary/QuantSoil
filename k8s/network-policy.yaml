@@ -20,6 +20,9 @@ spec:
   egress:
     - to:
         - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app: postgres
       ports:
         - protocol: TCP
           port: 5432
