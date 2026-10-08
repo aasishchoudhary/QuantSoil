@@ -18,6 +18,10 @@ import * as satellite from "satellite.js";
 const API = import.meta.env.VITE_API_BASE || "";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
+function apiUrl(path: string): string {
+  return `${API}${path}`;
+}
+
 app.innerHTML = `
 <div class="app-shell">
   <header class="topbar">
@@ -345,7 +349,7 @@ function cameraBbox(): string {
 }
 
 async function requestJson(path: string): Promise<any> {
-  const response = await fetch(`${API}${path}`, {
+  const response = await fetch(apiUrl(path), {
     headers: { Accept: "application/json" },
     cache: "no-store",
   });
@@ -407,7 +411,7 @@ async function refreshMap(): Promise<void> {
   if (!bbox) return;
   try {
     const analysisAt = analysisTimeInput.value ? new Date(`${analysisTimeInput.value}:00Z`).toISOString() : new Date().toISOString();
-    const data = await requestJson(`${API}/spatial?bbox=${encodeURIComponent(bbox)}&at=${encodeURIComponent(analysisAt)}&limit=1000`);
+    const data = await requestJson(`/spatial?bbox=${encodeURIComponent(bbox)}&at=${encodeURIComponent(analysisAt)}&limit=1000`);
     if (id !== requestSeq) return;
     lastFeatures = data.features || [];
     const old = dataSources.get("analyst");
