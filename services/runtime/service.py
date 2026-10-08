@@ -269,6 +269,12 @@ def create_app() -> FastAPI:
     def live():
         return {"status": "ok"}
 
+    # Backward-compatible health alias for local probes and development tooling.
+    # Kubernetes/readiness-aware callers should continue using /health/ready.
+    @app.get("/health")
+    def health():
+        return live()
+
     @app.get("/health/ready")
     def ready():
         db_ok = (
