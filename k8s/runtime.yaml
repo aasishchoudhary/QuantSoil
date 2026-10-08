@@ -23,6 +23,10 @@ spec:
       labels:
         app: world-intelligence-runtime
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: world-intelligence-runtime
       terminationGracePeriodSeconds: 30
       containers:
