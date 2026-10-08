@@ -68,23 +68,38 @@ jobs:
           aws-region: ap-south-1
           role-session-name: gods-eye-${{ github.run_id }}
 
-      - name: Verify AWS identity and Bedrock model
+      - name: Select authorized Bedrock model
         if: steps.gate.outputs.proceed == 'true'
+        id: model
         env:
           AWS_REGION: ap-south-1
-          MODEL_ID: amazon.nova-pro-v1:0
         run: |
           aws sts get-caller-identity
-          aws bedrock get-foundation-model --model-identifier "$MODEL_ID" >/tmp/bedrock-model.json
-          python - <<'PY'
-          import json
-          data=json.load(open("/tmp/bedrock-model.json", encoding="utf-8"))
-          model=data.get("modelDetails", {})
-          print("Bedrock model:", model.get("modelId"))
-          print("Provider:", model.get("providerName"))
-          print("Input modalities:", model.get("inputModalities"))
-          print("Output modalities:", model.get("outputModalities"))
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, subprocess
+          candidates = [
+              "amazon.nova-lite-v1:0",
+              "amazon.nova-micro-v1:0",
+          ]
+          for model_id in candidates:
+              p = subprocess.run(
+                  ["aws", "bedrock", "get-foundation-model-availability",
+                   "--region", os.environ["AWS_REGION"],
+                   "--model-id", model_id, "--output", "json"],
+                  text=True, capture_output=True
+              )
+              if p.returncode != 0:
+                  print(f"MODEL_CHECK_FAILED {model_id}: {p.stderr.strip()}")
+                  continue
+              data = json.loads(p.stdout)
+              status = data.get("authorizationStatus")
+              print(f"MODEL_CHECK {model_id}: authorizationStatus={status}")
+              if status == "AUTHORIZED":
+                  print(f"model_id={model_id}")
+                  raise SystemExit(0)
+          raise SystemExit("No authorized bounded-agent Bedrock model is available; Nova Pro is NOT_AUTHORIZED and will not be retried.")
           PY
+          echo "Selected authorized Bedrock model: $(grep '^model_id=' "$GITHUB_OUTPUT" | cut -d= -f2-)"
 
       - name: Install autonomy dependencies
         if: steps.gate.outputs.proceed == 'true'
@@ -167,7 +182,7 @@ jobs:
         if: steps.gate.outputs.proceed == 'true'
         env:
           GODS_EYE_TASK: ${{ steps.task.outputs.task }}
-          GODS_EYE_MODEL_ID: apac.amazon.nova-pro-v1:0
+          GODS_EYE_MODEL_ID: ${{ steps.model.outputs.model_id }}
           AWS_REGION: ap-south-1
         run: python scripts/autonomy/agent.py
 
