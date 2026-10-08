@@ -20,6 +20,7 @@ autonomy = ["boto3>=1.40,<2"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+markers = ["integration: tests requiring external service containers"]
 
 [tool.setuptools.packages.find]
 include = ["packages*", "services*"]
