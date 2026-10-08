@@ -101,3 +101,18 @@ def test_projection_uuid_normalization_is_deterministic():
     first = uuid.uuid5(uuid.NAMESPACE_URL, observation.observation_id)
     second = uuid.uuid5(uuid.NAMESPACE_URL, observation.observation_id)
     assert first == second
+
+
+def test_projection_sql_normalizes_3d_geojson_to_2d_postgis():
+    observation, evidence = make_records()
+    connection = Connection()
+    PostgresObservationProjectionRepository(connection).project(
+        observation=observation,
+        evidence=evidence,
+    )
+    map_query = next(
+        query
+        for query, _params in connection.cursor_instance.calls
+        if "INSERT INTO map_features" in query
+    )
+    assert "ST_Force2D(ST_GeomFromGeoJSON(%s))" in map_query
