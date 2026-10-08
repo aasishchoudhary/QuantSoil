@@ -53,6 +53,9 @@ spec:
                 secretKeyRef:
                   name: world-intelligence-runtime
                   key: DATABASE_URL
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
             - name: EVIDENCE_BUCKET
               valueFrom:
                 secretKeyRef:
