@@ -960,7 +960,13 @@ let cameraTimer: number | undefined;
 viewer.camera.changed.addEventListener(() => {
   updateAircraftPresentation();
   window.clearTimeout(cameraTimer);
-  cameraTimer = window.setTimeout(() => void refreshMap(), 650);
+  cameraTimer = window.setTimeout(() => {
+    // Keep every viewport-bound feed in sync after pan/zoom. Without this,
+    // aircraft remain queried against the previous bounding box and appear
+    // to disappear when the operator moves the globe.
+    void refreshMap();
+    if (runtimeReady) void refreshLiveLayers();
+  }, 650);
 });
 
 window.addEventListener("keydown", (event) => {
