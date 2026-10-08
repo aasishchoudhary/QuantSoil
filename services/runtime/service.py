@@ -54,7 +54,7 @@ def build_components():
     evidence_metadata = PostgresEvidenceRepository(connection)
     runner = ConnectorRunner(
         registry, ObservationIngestor(),
-        retry_policy=RetryPolicy(max_attempts=_int("CONNECTOR_MAX_ATTEMPTS", 3, 1)),
+        retry_policy=RetryPolicy(max_attempts=1),
         health_store=health,
         audit_store=audit,
         evidence_payload_store=evidence_payload,
@@ -66,6 +66,8 @@ def build_components():
             lease_duration=timedelta(seconds=_int("RUNTIME_LEASE_SECONDS", 300, 1)),
             max_attempts=_int("RUNTIME_MAX_ATTEMPTS", 3, 1),
             retry_delay=timedelta(seconds=_int("RUNTIME_RETRY_DELAY_SECONDS", 30, 0)),
+            max_retry_delay=timedelta(seconds=_int("RUNTIME_MAX_RETRY_DELAY_SECONDS", 600, 1)),
+            jitter_ratio=float(os.getenv("RUNTIME_RETRY_JITTER_RATIO", "0.2")),
         ),
     )
     interval = timedelta(seconds=_int("RUNTIME_SOURCE_INTERVAL_SECONDS", 60, 1))
