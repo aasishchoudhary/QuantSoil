@@ -41,7 +41,7 @@ jobs:
         run: python -m compileall -q packages services tests
 
       - name: Validate Kubernetes manifests
-        run: python -c 'import pathlib, yaml; list(yaml.safe_load_all(pathlib.Path("k8s/runtime.yaml").read_text()))'
+        run: python -c 'import pathlib, yaml; [list(yaml.safe_load_all(p.read_text())) for p in pathlib.Path("k8s").glob("*.yaml")]'
 
       - name: Run unit tests
         run: python -m pytest -q
