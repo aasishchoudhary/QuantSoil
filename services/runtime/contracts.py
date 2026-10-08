@@ -28,6 +28,7 @@ class RuntimeJob:
     status: JobStatus = JobStatus.QUEUED
     lease_until: datetime | None = None
     last_error_type: str | None = None
+    lease_token: datetime | None = None
 
     def __post_init__(self) -> None:
         if not self.job_id.strip() or not self.source.strip() or not self.idempotency_key.strip():
@@ -38,6 +39,8 @@ class RuntimeJob:
             raise ValueError("attempts cannot be negative")
         if self.lease_until is not None and self.lease_until.tzinfo is None:
             raise ValueError("lease_until must be timezone-aware")
+        if self.lease_token is not None and self.lease_token.tzinfo is None:
+            raise ValueError("lease_token must be timezone-aware")
         if self.status is JobStatus.RUNNING and self.lease_until is None:
             raise ValueError("running job requires a lease")
 
@@ -48,24 +51,25 @@ class RuntimeJob:
             raise ValueError("only queued/retry/expired-running jobs can be leased")
         if self.status is JobStatus.RUNNING and (self.lease_until is None or self.lease_until > now):
             raise ValueError("running job lease has not expired")
+        lease_until = now + duration
         return RuntimeJob(self.job_id,self.source,self.idempotency_key,self.scheduled_at,
-                          self.attempts+1,JobStatus.RUNNING,now+duration,self.last_error_type)
+                          self.attempts+1,JobStatus.RUNNING,lease_until,self.last_error_type,lease_until)
 
     def success(self) -> "RuntimeJob":
         return RuntimeJob(self.job_id,self.source,self.idempotency_key,self.scheduled_at,
-                          self.attempts,JobStatus.SUCCEEDED,None,None)
+                          self.attempts,JobStatus.SUCCEEDED,None,None,self.lease_until or self.lease_token)
 
     def retry(self, *, error_type: str, next_run_at: datetime) -> "RuntimeJob":
         if self.status is not JobStatus.RUNNING:
             raise ValueError("only running jobs can retry")
         return RuntimeJob(self.job_id,self.source,self.idempotency_key,next_run_at,
-                          self.attempts,JobStatus.RETRY,None,error_type)
+                          self.attempts,JobStatus.RETRY,None,error_type,self.lease_until or self.lease_token)
 
     def fail(self, *, error_type: str) -> "RuntimeJob":
         if self.status is not JobStatus.RUNNING:
             raise ValueError("only running jobs can fail")
         return RuntimeJob(self.job_id,self.source,self.idempotency_key,self.scheduled_at,
-                          self.attempts,JobStatus.FAILED,None,error_type)
+                          self.attempts,JobStatus.FAILED,None,error_type,self.lease_until or self.lease_token)
 
 
 class JobQueue(Protocol):
@@ -111,8 +115,8 @@ class InMemoryJobQueue:
         if (
             current is None
             or current.status is not JobStatus.RUNNING
-            or current.lease_until != job.lease_until
-            or job.lease_until is None
+            or current.lease_until != job.lease_token
+            or job.lease_token is None
         ):
             raise ValueError("job lease is no longer active")
         self._jobs[job.job_id]=job
