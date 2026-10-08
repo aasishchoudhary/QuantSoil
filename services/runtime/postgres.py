@@ -20,8 +20,8 @@ class Connection(Protocol):
 _CLAIM = """
 WITH candidate AS (
     SELECT job_id FROM runtime_jobs
-    WHERE status IN ('queued','retry')
-      AND scheduled_at <= %s
+    WHERE scheduled_at <= %s
+      AND (status IN ('queued','retry') OR (status='running' AND lease_until <= %s))
     ORDER BY scheduled_at, job_id
     FOR UPDATE SKIP LOCKED
     LIMIT 1
@@ -77,7 +77,7 @@ class PostgresJobQueue(JobQueue):
         until=now+lease
         try:
             with self.connection.cursor() as c:
-                c.execute(_CLAIM,(now,until,now))
+                c.execute(_CLAIM,(now,now,until,now))
                 row=c.fetchone()
             self.connection.commit()
         except Exception as exc:
