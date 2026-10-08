@@ -1,0 +1,17 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://gods-eye-world-intelligence.dev/schemas/analyst-query.schema.json",
+  "title":"Analyst Query Response",
+  "type":"object",
+  "required":["generated_at"],
+  "properties":{
+    "as_of":{"type":"string","format":"date-time"},
+    "generated_at":{"type":"string","format":"date-time"},
+    "states":{"type":"array"},
+    "changes":{"type":"array"},
+    "evidence":{"type":"object"},
+    "type":{"type":"string"},
+    "features":{"type":"array"}
+  },
+  "additionalProperties":true
+}
