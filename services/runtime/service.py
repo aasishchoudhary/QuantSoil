@@ -22,6 +22,7 @@ from packages.repositories.analyst_audit_postgres import PostgresAnalystAuditRep
 from services.analyst.query import AnalystService
 from services.analyst.api import create_app as create_analyst_app, create_unavailable_app
 from services.geospatial.api import create_app as create_map_app
+from services.live.api import create_app as create_live_app
 from packages.repositories.source_health_postgres import PostgresIngestionAuditRepository, PostgresSourceHealthRepository
 from services.connectors.runner import ConnectorRunner
 from services.connectors.retry import RetryPolicy
@@ -194,6 +195,7 @@ def create_app() -> FastAPI:
             health_check=analyst_health_check,
         )
         app.mount("/v1/map", create_map_app(map_repository))
+        app.mount("/v1/live", create_live_app())
         state["started"] = True
 
         def loop():
