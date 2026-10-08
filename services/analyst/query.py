@@ -9,6 +9,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Protocol
 
+MAX_ENTITY_IDS = 100
+MAX_ENTITY_ID_LENGTH = 256
+MAX_TIMELINE_DAYS = 3650
+
 from packages.contracts.world_state import EntityState
 from services.world_state.query import HistoricalState, StateChange, diff_states, get_state_at
 
@@ -53,6 +57,12 @@ class AnalystService:
         _aware(at, "at")
         if not entity_ids:
             raise AnalystQueryError("at least one entity_id is required")
+        if len(entity_ids) > MAX_ENTITY_IDS:
+            raise AnalystQueryError(f"at most {MAX_ENTITY_IDS} entity_ids are allowed")
+        if any(not entity_id.strip() for entity_id in entity_ids):
+            raise AnalystQueryError("entity_id must not be empty")
+        if any(len(entity_id) > MAX_ENTITY_ID_LENGTH for entity_id in entity_ids):
+            raise AnalystQueryError(f"entity_id must be <= {MAX_ENTITY_ID_LENGTH} characters")
         ordered = tuple(sorted(set(entity_ids)))
         states = tuple(
             state for entity_id in ordered
@@ -64,6 +74,12 @@ class AnalystService:
         _aware(start, "start"); _aware(end, "end")
         if not entity_id.strip():
             raise AnalystQueryError("entity_id is required")
+        if len(entity_id) > MAX_ENTITY_ID_LENGTH:
+            raise AnalystQueryError(f"entity_id must be <= {MAX_ENTITY_ID_LENGTH} characters")
+        if end < start:
+            raise AnalystQueryError("end must be >= start")
+        if (end - start).days > MAX_TIMELINE_DAYS:
+            raise AnalystQueryError(f"timeline range must be <= {MAX_TIMELINE_DAYS} days")
         return AnalystTimeline(entity_id, start, end, diff_states(self.world_state, entity_id, start, end))
 
     def spatial(self, bbox: tuple[float, float, float, float], *, at: datetime | None = None,
