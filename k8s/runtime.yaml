@@ -33,7 +33,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: runtime
-          image: ghcr.io/aasishchoudhary/quantsoil:0.1.0
+          image: ghcr.io/aasishchoudhary/quantsoil:v0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -139,7 +139,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: migrate
-          image: ghcr.io/aasishchoudhary/quantsoil:0.1.0
+          image: ghcr.io/aasishchoudhary/quantsoil:v0.1.0
           command: ["python", "-m", "services.runtime.migrate"]
           securityContext:
             runAsNonRoot: true
