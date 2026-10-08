@@ -17,7 +17,7 @@ from packages.repositories.world_state_postgres import PostgresWorldStateReposit
 from packages.repositories.map_postgres import PostgresMapRepository
 from packages.repositories.analyst_audit_postgres import PostgresAnalystAuditRepository
 from services.analyst.query import AnalystService
-from services.analyst.api import create_app as create_analyst_app
+from services.analyst.api import create_app as create_analyst_app, create_unavailable_app
 from services.geospatial.api import create_app as create_map_app
 from packages.repositories.source_health_postgres import PostgresIngestionAuditRepository, PostgresSourceHealthRepository
 from services.connectors.runner import ConnectorRunner
@@ -98,6 +98,10 @@ def create_app() -> FastAPI:
         try:
             connection, registry, connectors, queue, scheduler, worker = build_components()
         except Exception as exc:
+            # Keep the HTTP contract mounted even when infrastructure is unavailable.
+            # /health/live remains process liveness; /health/ready and analyst endpoints
+            # explicitly report dependency degradation instead of returning misleading 404s.
+            app.mount("/v1/analyst", create_unavailable_app())
             emit(RuntimeEvent("runtime_start_failed", datetime.now(timezone.utc),
                               error_type=type(exc).__name__))
             yield
