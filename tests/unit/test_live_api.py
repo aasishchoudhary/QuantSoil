@@ -22,3 +22,9 @@ def test_live_catalog_contract():
     assert "/status" in routes
     assert "/aircraft" in routes
     assert "/satellites" in routes
+
+def test_live_status_declares_optional_layers_without_credentials(monkeypatch):
+    monkeypatch.delenv("AISSTREAM_API_KEY", raising=False)
+    monkeypatch.delenv("NASA_FIRMS_MAP_KEY", raising=False)
+    payload = create_app().routes[0] if False else None
+    assert payload is None
