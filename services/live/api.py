@@ -95,6 +95,8 @@ def _aircraft_feature(state: list[Any], source: str) -> dict[str, Any] | None:
             "heading_deg": state[10] if len(state) > 10 else None,
             "vertical_rate_mps": state[11] if len(state) > 11 else None,
             "squawk": state[14] if len(state) > 14 else None,
+            "position_source": state[16] if len(state) > 16 else None,
+            "category": state[17] if len(state) > 17 else None,
         },
     }
 
