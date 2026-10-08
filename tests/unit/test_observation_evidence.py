@@ -18,6 +18,7 @@ def make_observation(payload=None):
         source_record_id="record-1",
         observed_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         ingested_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        acquired_at=datetime(2026, 1, 1, 12, tzinfo=timezone.utc),
         payload=payload,
         provenance=Provenance(digest, "parser-v1"),
     )
@@ -33,6 +34,7 @@ def test_bridge_is_deterministic_and_preserves_identity():
     assert first.raw_payload_hash == Observation.payload_hash(first.payload)
     assert first.parser_version == "parser-v1"
     assert first.observed_at == datetime(2026, 1, 1, tzinfo=timezone.utc)
+    assert first.acquired_at == datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
 
 
 def test_bridge_rejects_tampered_observation():
