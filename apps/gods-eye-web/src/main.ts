@@ -645,16 +645,34 @@ async function refreshLiveLayers(): Promise<void> {
   const earthquakesOn = ($("#layer-earthquakes") as HTMLInputElement).checked;
   const firesOn = ($("#layer-fires") as HTMLInputElement).checked;
   const shipsOn = ($("#layer-ships") as HTMLInputElement).checked;
-  try {
-    if (!aircraftOn) removeAircraftEntities(); else await refreshAircraft();
-    if (satellitesOn) await refreshSatellites(); else removeSatelliteEntities();
-    if (earthquakesOn) await refreshEarthquakes(); else removeLiveLayer("earthquakes");
-    if (firesOn) await refreshFires(); else removeLiveLayer("fires");
-    if (shipsOn) await refreshShips(); else removeLiveLayer("ships");
-    if (aircraftOn || satellitesOn || earthquakesOn || firesOn || shipsOn) setStatus("LIVE WORLD FEEDS", "ready");
-  } catch (error) {
-    setStatus("LIVE FEED DEGRADED", "warn");
-    console.warn(error);
+
+  // One provider outage must not prevent unrelated live layers from refreshing.
+  const jobs: Array<{ name: string; run: () => Promise<void> }> = [];
+  if (aircraftOn) jobs.push({ name: "AIRCRAFT", run: refreshAircraft });
+  else removeAircraftEntities();
+  if (satellitesOn) jobs.push({ name: "SATELLITES", run: refreshSatellites });
+  else removeSatelliteEntities();
+  if (earthquakesOn) jobs.push({ name: "EARTHQUAKES", run: refreshEarthquakes });
+  else removeLiveLayer("earthquakes");
+  if (firesOn) jobs.push({ name: "FIRES", run: refreshFires });
+  else removeLiveLayer("fires");
+  if (shipsOn) jobs.push({ name: "SHIPS", run: refreshShips });
+  else removeLiveLayer("ships");
+
+  const results = await Promise.all(jobs.map(async (job) => {
+    try {
+      await job.run();
+      return { name: job.name, ok: true };
+    } catch (error) {
+      console.warn(`Live layer ${job.name} failed`, error);
+      return { name: job.name, ok: false };
+    }
+  }));
+  const failed = results.filter((result) => !result.ok).map((result) => result.name);
+  if (failed.length) {
+    setStatus(`LIVE DEGRADED • ${failed.join(", ")}`, "warn");
+  } else if (jobs.length) {
+    setStatus("LIVE WORLD FEEDS", "ready");
   }
 }
 
@@ -1001,3 +1019,19 @@ void checkHealth().then((ready) => {
     void refreshLiveLayers();
   }
 });
+
+// Recover automatically if the API starts late or becomes temporarily unavailable.
+let healthRecoveryInFlight = false;
+window.setInterval(async () => {
+  if (runtimeReady || healthRecoveryInFlight) return;
+  healthRecoveryInFlight = true;
+  try {
+    const ready = await checkHealth();
+    if (ready) {
+      void refreshMap();
+      void refreshLiveLayers();
+    }
+  } finally {
+    healthRecoveryInFlight = false;
+  }
+}, 15000);
