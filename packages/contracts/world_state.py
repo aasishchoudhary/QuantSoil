@@ -61,6 +61,15 @@ class InMemoryWorldStateRepository:
         history = self._states.setdefault(state.entity_id, [])
         if any(existing.state_id == state.state_id for existing in history):
             raise WorldStateError(f"duplicate state_id: {state.state_id}")
+        for existing in history:
+            overlaps = (
+                state.valid_from < (existing.valid_to or datetime.max)
+                and existing.valid_from < (state.valid_to or datetime.max)
+            )
+            if overlaps:
+                raise WorldStateError(
+                    f"overlapping validity interval for entity: {state.entity_id}"
+                )
         history.append(state)
         history.sort(key=lambda item: (item.valid_from, item.recorded_at, item.state_id))
         return state
