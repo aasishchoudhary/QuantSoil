@@ -1,9 +1,35 @@
 {
   "version": 1,
   "tasks": [
-    {"id":"evidence-postgres-repository","priority":10,"goal":"Implement a production PostgreSQL repository adapter for EvidenceRecord matching the existing immutable ledger contract and migration. Add focused unit/contract tests using deterministic fixtures; do not require a live database for the default test suite.","done_when":["Repository preserves immutable identity and idempotent replay semantics.","Hash/schema/license/provenance fields map exactly to migration columns.","Failure behavior is explicit and tested."]},
-    {"id":"observation-evidence-bridge","priority":20,"goal":"Implement a deterministic bridge from validated Observation contracts into EvidenceRecord without losing provenance or temporal metadata. Add tests for replay, hash integrity, and metadata preservation.","done_when":["Every derived observation retains an evidence reference.","Payload identity is deterministic.","Tampering is rejected."]},
-    {"id":"event-contract","priority":30,"goal":"Design and implement the first production Event contract for the event engine, preserving observed versus derived versus predicted state and explicit evidence references. Add JSON schema and tests.","done_when":["Observed and predicted state cannot be conflated.","Event provenance is mandatory.","Schema and unit tests pass."]},
-    {"id":"provenance-trace-api","priority":40,"goal":"Implement a small deterministic provenance-trace service contract that can resolve an observation or event back to its evidence record and source metadata. Include failure behavior and tests.","done_when":["Trace results are deterministic.","Missing evidence is explicit rather than silently omitted.","Tests cover valid and missing references."]}
+    {
+      "id": "observation-evidence-bridge",
+      "priority": 20,
+      "goal": "Implement a deterministic bridge from validated Observation contracts into EvidenceRecord without losing provenance or temporal metadata. Add tests for replay, hash integrity, and metadata preservation.",
+      "done_when": [
+        "Every derived observation retains an evidence reference.",
+        "Payload identity is deterministic.",
+        "Tampering is rejected."
+      ]
+    },
+    {
+      "id": "event-contract",
+      "priority": 30,
+      "goal": "Design and implement the first production Event contract for the event engine, preserving observed versus derived versus predicted state and explicit evidence references. Add JSON schema and tests.",
+      "done_when": [
+        "Observed and predicted state cannot be conflated.",
+        "Event provenance is mandatory.",
+        "Schema and unit tests pass."
+      ]
+    },
+    {
+      "id": "provenance-trace-api",
+      "priority": 40,
+      "goal": "Implement a small deterministic provenance-trace service contract that can resolve an observation or event back to its evidence record and source metadata. Include failure behavior and tests.",
+      "done_when": [
+        "Trace results are deterministic.",
+        "Missing evidence is explicit rather than silently omitted.",
+        "Tests cover valid and missing references."
+      ]
+    }
   ]
 }
