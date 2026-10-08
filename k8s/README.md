@@ -1,5 +1,7 @@
 # Runtime deployment
 
+**Cluster prerequisite:** Kubernetes 1.37+ for the pinned Restricted Pod Security Admission policy in `namespace.yaml`. If the target cluster is older, pin the namespace policy version to that cluster's supported version after validating the manifests.
+
 This manifest is a deployment template. Secrets and cloud permissions stay outside source control.
 
 ## Required external configuration
