@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping, Protocol
+
+from packages.contracts.ingestion_audit import RejectedRecord
 from urllib.request import Request, urlopen
 import json
 
@@ -124,24 +126,6 @@ class IngestionAudit:
             raise ConnectorError("invalid audit counters")
         if self.records_accepted + self.records_rejected > self.records_seen:
             raise ConnectorError("accepted + rejected cannot exceed seen")
-
-
-@dataclass(frozen=True)
-class RejectedRecord:
-    run_id: str
-    source: str
-    source_record_id: str
-    raw_payload_hash: str
-    status: str
-    reasons: tuple[str, ...]
-    observed_at: datetime
-    rejected_at: datetime
-
-    def __post_init__(self) -> None:
-        if self.status not in {"stale", "invalid", "duplicate"}:
-            raise ConnectorError("unsupported rejection status")
-        if not self.reasons:
-            raise ConnectorError("rejection reasons are required")
 
 
 class USGSEarthquakeConnector:
