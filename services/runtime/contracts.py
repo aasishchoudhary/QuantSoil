@@ -44,8 +44,10 @@ class RuntimeJob:
     def lease(self, *, now: datetime, duration: timedelta) -> "RuntimeJob":
         if now.tzinfo is None or duration <= timedelta(0):
             raise ValueError("invalid lease arguments")
-        if self.status not in {JobStatus.QUEUED, JobStatus.RETRY}:
-            raise ValueError("only queued/retry jobs can be leased")
+        if self.status not in {JobStatus.QUEUED, JobStatus.RETRY, JobStatus.RUNNING}:
+            raise ValueError("only queued/retry/expired-running jobs can be leased")
+        if self.status is JobStatus.RUNNING and (self.lease_until is None or self.lease_until > now):
+            raise ValueError("running job lease has not expired")
         return RuntimeJob(self.job_id,self.source,self.idempotency_key,self.scheduled_at,
                           self.attempts+1,JobStatus.RUNNING,now+duration,self.last_error_type)
 
