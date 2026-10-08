@@ -91,7 +91,7 @@ class PostgresJobQueue(JobQueue):
         try:
             with self.connection.cursor() as c:
                 c.execute(_UPDATE,(job.scheduled_at,job.attempts,job.status.value,
-                                   job.lease_until,job.last_error_type,now,job.job_id,job.lease_until))
+                                   job.lease_until,job.last_error_type,now,job.job_id,job.lease_token))
                 if getattr(c,"rowcount",1) != 1:
                     raise RuntimeError("runtime job lease is no longer active")
             self.connection.commit()
@@ -113,4 +113,4 @@ class PostgresJobQueue(JobQueue):
     @staticmethod
     def _row(row: tuple[Any,...]) -> RuntimeJob:
         return RuntimeJob(str(row[0]),str(row[1]),str(row[2]),row[3],int(row[4]),
-                          JobStatus(str(row[5])),row[6],row[7])
+                          JobStatus(str(row[5])),row[6],row[7],row[6])
