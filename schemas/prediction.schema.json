@@ -11,7 +11,8 @@
     "generated_at":{"type":"string","format":"date-time"},
     "horizon_seconds":{"type":"number","exclusiveMinimum":0},
     "probability":{"type":"number","minimum":0,"maximum":1},
-    "evidence_refs":{"type":"array","items":{"type":"string","minLength":1},"minItems":1,"uniqueItems":true}
+    "evidence_refs":{"type":"array","items":{"type":"string","minLength":1},"minItems":1,"uniqueItems":true},
+    "target":{"type":["string","number","boolean","object","array","null"]}
   },
   "additionalProperties":true
 }
