@@ -21,9 +21,9 @@ class EntityState:
     entity_id: str
     entity_type: str
     valid_from: datetime
+    valid_to: datetime | None
     observed_at: datetime
     recorded_at: datetime
-    valid_to: datetime | None = None
     properties: Mapping[str, Any] = field(default_factory=dict)
     geometry: Mapping[str, Any] | None = None
     confidence: float | None = None
