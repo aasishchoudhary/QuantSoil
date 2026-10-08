@@ -39,4 +39,4 @@ class RetryPolicy:
         )
         if retry_after is None:
             return exponential
-        return min(self.max_delay, max(exponential, retry_after))
+        return max(exponential, retry_after)
