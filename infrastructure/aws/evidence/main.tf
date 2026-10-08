@@ -24,6 +24,14 @@ resource "aws_s3_bucket" "evidence" {
   }
 }
 
+resource "aws_s3_bucket_ownership_controls" "evidence" {
+  bucket = aws_s3_bucket.evidence.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "evidence" {
   bucket = aws_s3_bucket.evidence.id
 
