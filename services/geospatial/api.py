@@ -151,7 +151,7 @@ def create_app(repository: InMemoryMapRepository | None = None):
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.get("/v1/map/tiles/{z}/{x}/{y}.pbf")
+    @app.get("/tiles/{z}/{x}/{y}.pbf")
     def tile(z: int, x: int, y: int, at: datetime | None = Query(default=None)):
         tile_fn = getattr(repo, "tile", None)
         if tile_fn is None:
@@ -164,7 +164,7 @@ def create_app(repository: InMemoryMapRepository | None = None):
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return Response(content=payload, media_type="application/vnd.mapbox-vector-tile")
 
-    @app.get("/v1/map/features")
+    @app.get("/features")
     def features(
         bbox: str = Query(..., description="minLon,minLat,maxLon,maxLat"),
         at: datetime | None = Query(default=None),
