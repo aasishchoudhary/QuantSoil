@@ -36,6 +36,14 @@ God's Eye View upstream is MIT, but its third-party data and visual assets have 
 
 This command center remains evidence-first and lawful. It does not add named-person search, face recognition, private-device tracking, credential collection, or covert collection. Modeled/inferred data must be labeled as such.
 
+## Implementation status
+
+The repository now contains real provider adapters for OpenSky, ADSB.lol, USGS, CelesTrak, Open-Meteo, NASA FIRMS (credential-gated), and AISStream (server-side credential-gated websocket ingestion). The browser exposes aircraft, satellites, earthquakes, wildfire and ship layers without treating unavailable credentials as live data.
+
+The following are intentionally provider-gated rather than falsely represented as universal keyless services: live global traffic, a global public-camera catalog, world radio station metadata, Google Photorealistic 3D Tiles, NASA FIRMS, AISStream, and OpenAI Realtime. There is no single authoritative global API for the first three; production integration requires selecting and licensing a concrete provider/catalog.
+
+The six named command profiles are implemented as QuantSoil-native governed workspaces/interfaces; they do not copy upstream AGPL application source.
+
 ## Acceptance gates
 
 1. Backend live gateway starts with no API keys.
@@ -45,3 +53,5 @@ This command center remains evidence-first and lawful. It does not add named-per
 5. Google 3D remains optional and never requires a secret committed to Git.
 6. Existing analyst and projection tests remain green.
 7. Web build succeeds with the new live-layer controls.
+8. Optional AISStream/FIRMS routes fail explicitly with 503 when credentials are absent; they never fabricate data.
+9. The UI has no stale event-handler reference to a removed/nonexistent control.
