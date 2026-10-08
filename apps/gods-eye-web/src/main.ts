@@ -8,6 +8,7 @@ import {
   PropertyBag,
   Color,
   ConstantProperty,
+  PathGraphics,
   GeoJsonDataSource,
   OpenStreetMapImageryProvider,
   EllipsoidTerrainProvider,
@@ -166,9 +167,17 @@ const confidenceEl = $("#confidence") as HTMLElement;
 const dataSources = new Map<string, any>();
 const liveSources = new Map<string, any>();
 const aircraftEntities = new Map<string, Entity>();
+const aircraftSamples = new Map<string, JulianDate[]>();
+const satelliteEntities = new Map<string, Entity>();
+let liveClockInitialized = false;
+const AIRCRAFT_TRAIL_SECONDS = 180;
+const AIRCRAFT_LEAD_SECONDS = 20;
+const SATELLITE_ORBIT_SECONDS = 2 * 60 * 60;
+const SATELLITE_SAMPLE_SECONDS = 240;
 const AIRCRAFT_ICON = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M32 3 L39 27 L57 35 L57 41 L39 37 L36 60 L28 60 L25 37 L7 41 L7 35 L25 27 Z" fill="#e8f7ff" stroke="#07131d" stroke-width="3" stroke-linejoin="round"/></svg>`);
 const JET_ICON = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M32 2 L37 22 L58 32 L58 38 L38 35 L35 61 L29 61 L26 35 L6 38 L6 32 L27 22 Z" fill="#ffd166" stroke="#07131d" stroke-width="3" stroke-linejoin="round"/><path d="M26 27 L12 17 L10 22 L25 34 Z M38 27 L52 17 L54 22 L39 34 Z" fill="#ffd166" stroke="#07131d" stroke-width="2"/></svg>`);
 const ROTOR_ICON = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="34" r="12" fill="#75d6ff" stroke="#07131d" stroke-width="3"/><path d="M8 18 Q32 10 56 18 M8 50 Q32 58 56 50 M32 5 L32 59" fill="none" stroke="#75d6ff" stroke-width="4"/></svg>`);
+const SATELLITE_ICON = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"><path d="M24 4 L44 24 L24 44 L4 24 Z" fill="#c084fc" stroke="#120b1c" stroke-width="3"/><circle cx="24" cy="24" r="5" fill="#fff"/></svg>`);
 const AIRCRAFT_REFRESH_MS = 10000;
 let requestSeq = 0;
 let lastFeatures: any[] = [];
@@ -230,10 +239,22 @@ function setLayerVisibility(): void {
       if (entity.label) entity.label.show = new ConstantProperty(labels);
     });
   }
+  aircraftEntities.forEach((entity) => {
+    if (entity.label) entity.label.show = new ConstantProperty(labels);
+  });
+  satelliteEntities.forEach((entity) => {
+    if (entity.label) entity.label.show = new ConstantProperty(labels);
+  });
 }
 function removeAircraftEntities(): void {
   for (const entity of aircraftEntities.values()) viewer.entities.remove(entity);
   aircraftEntities.clear();
+  aircraftSamples.clear();
+}
+
+function removeSatelliteEntities(): void {
+  for (const entity of satelliteEntities.values()) viewer.entities.remove(entity);
+  satelliteEntities.clear();
 }
 
 function aircraftIcon(category: number | null): string {
@@ -243,7 +264,7 @@ function aircraftIcon(category: number | null): string {
 }
 
 function predictPosition(lon: number, lat: number, altitude: number, speedMps: number | null, headingDeg: number | null, seconds: number): Cartesian3 {
-  if (!speedMps || !headingDeg || speedMps <= 0) return Cartesian3.fromDegrees(lon, lat, altitude);
+  if (!speedMps || headingDeg == null || speedMps <= 0) return Cartesian3.fromDegrees(lon, lat, altitude);
   const distance = speedMps * seconds;
   const heading = headingDeg * Math.PI / 180;
   const radius = 6371000;
@@ -252,11 +273,55 @@ function predictPosition(lon: number, lat: number, altitude: number, speedMps: n
   return Cartesian3.fromDegrees(lon + dLon * 180 / Math.PI, lat + dLat * 180 / Math.PI, altitude);
 }
 
+function aircraftLabel(props: any, icao: string): string {
+  const callsign = String(props.callsign || "").trim() || icao;
+  const altitude = Number(props.altitude_m);
+  const speed = Number(props.velocity_mps);
+  const altitudeFt = Number.isFinite(altitude) ? Math.round(altitude * 3.28084 / 100) * 100 : null;
+  const speedKt = Number.isFinite(speed) ? Math.round(speed * 1.94384) : null;
+  return [
+    callsign,
+    altitudeFt == null ? "ALT —" : `ALT ${altitudeFt.toLocaleString()} FT`,
+    speedKt == null ? "SPD —" : `SPD ${speedKt} KT`,
+  ].join("\\n");
+}
+
+function updateAircraftSamples(
+  entity: Entity,
+  icao: string,
+  sampleTime: JulianDate,
+  position: Cartesian3,
+  futureTime: JulianDate,
+  futurePosition: Cartesian3,
+): void {
+  let property = entity.position as SampledPositionProperty;
+  const times = aircraftSamples.get(icao) || [];
+  const lastTime = times[times.length - 1];
+  if (!lastTime || JulianDate.compare(sampleTime, lastTime) > 0) {
+    property.addSample(sampleTime, position);
+    times.push(sampleTime);
+  } else {
+    property.addSample(sampleTime, position);
+  }
+  property.addSample(futureTime, futurePosition);
+  while (times.length > 18) {
+    property.removeSample(times.shift()!);
+  }
+  aircraftSamples.set(icao, times);
+}
+
 async function refreshAircraft(): Promise<void> {
   const data = await requestJson("/v1/live/aircraft?bbox=" + encodeURIComponent(cameraBbox()) + "&provider=opensky");
   const observed = new Date(data.observed_at || Date.now());
   const sampleTime = JulianDate.fromDate(observed);
   const seen = new Set<string>();
+
+  if (!liveClockInitialized) {
+    viewer.clock.currentTime = JulianDate.fromDate(new Date());
+    viewer.clock.multiplier = 1;
+    viewer.clock.shouldAnimate = true;
+    liveClockInitialized = true;
+  }
 
   for (const feature of data.features || []) {
     const props = feature.properties || {};
@@ -274,29 +339,31 @@ async function refreshAircraft(): Promise<void> {
     const category = props.category == null ? null : Number(props.category);
     const heading = props.heading_deg == null ? null : Number(props.heading_deg);
     const speed = props.velocity_mps == null ? null : Number(props.velocity_mps);
+    const futureTime = JulianDate.addSeconds(sampleTime, AIRCRAFT_REFRESH_MS / 1000, new JulianDate());
+    const futurePosition = predictPosition(lon, lat, altitude, speed, heading, AIRCRAFT_REFRESH_MS / 1000);
     const existing = aircraftEntities.get(icao);
 
     if (existing) {
-      const positionProperty = existing.position as SampledPositionProperty;
-      positionProperty.addSample(sampleTime, position);
-      positionProperty.addSample(
-        JulianDate.addSeconds(sampleTime, AIRCRAFT_REFRESH_MS / 1000, new JulianDate()),
-        predictPosition(lon, lat, altitude, speed, heading, AIRCRAFT_REFRESH_MS / 1000)
-      );
+      updateAircraftSamples(existing, icao, sampleTime, position, futureTime, futurePosition);
       if (existing.billboard) {
         existing.billboard.image = new ConstantProperty(aircraftIcon(category));
         existing.billboard.rotation = new ConstantProperty((heading || 0) * Math.PI / 180);
       }
+      if (existing.label) existing.label.text = new ConstantProperty(aircraftLabel(props, icao));
       existing.name = props.callsign?.trim() || icao;
+      if (existing.properties) {
+        existing.properties.callsign = new ConstantProperty(props.callsign || "");
+        existing.properties.altitude_m = new ConstantProperty(altitude);
+        existing.properties.velocity_mps = new ConstantProperty(speed);
+        existing.properties.heading_deg = new ConstantProperty(heading);
+      }
       continue;
     }
 
     const positionProperty = new SampledPositionProperty();
     positionProperty.addSample(sampleTime, position);
-    positionProperty.addSample(
-      JulianDate.addSeconds(sampleTime, AIRCRAFT_REFRESH_MS / 1000, new JulianDate()),
-      predictPosition(lon, lat, altitude, speed, heading, AIRCRAFT_REFRESH_MS / 1000)
-    );
+    positionProperty.addSample(futureTime, futurePosition);
+    aircraftSamples.set(icao, [sampleTime]);
 
     const entity = viewer.entities.add({
       id: `aircraft-${icao}`,
@@ -309,6 +376,25 @@ async function refreshAircraft(): Promise<void> {
         rotation: (heading || 0) * Math.PI / 180,
         alignedAxis: Cartesian3.ZERO,
         pixelOffset: new Cartesian2(0, 0),
+      }),
+      label: {
+        text: aircraftLabel(props, icao),
+        font: "11px monospace",
+        style: 1,
+        show: ($("#layer-labels") as HTMLInputElement).checked,
+        showBackground: true,
+        backgroundColor: Color.fromCssColorString("rgba(4,12,18,0.78)"),
+        fillColor: Color.WHITE,
+        outlineWidth: 2,
+        pixelOffset: new Cartesian2(16, -8),
+      },
+      path: new PathGraphics({
+        show: true,
+        trailTime: AIRCRAFT_TRAIL_SECONDS,
+        leadTime: AIRCRAFT_LEAD_SECONDS,
+        width: 2,
+        resolution: 10,
+        material: Color.fromCssColorString("rgba(255,209,102,0.8)"),
       }),
       properties: new PropertyBag({
         entity_type: "aircraft",
@@ -328,13 +414,107 @@ async function refreshAircraft(): Promise<void> {
     if (!seen.has(icao)) {
       viewer.entities.remove(entity);
       aircraftEntities.delete(icao);
+      aircraftSamples.delete(icao);
     }
   }
 
   viewer.clock.shouldAnimate = true;
-  viewer.clock.currentTime = JulianDate.fromDate(new Date());
   setMetric(featureCount, data.count || 0);
   setStatus(`AIRCRAFT LIVE • ${data.count || 0}`, "ready");
+}
+
+async function refreshSatellites(): Promise<void> {
+  const payload = await requestJson("/v1/live/satellites?group=active&limit=1000");
+  removeSatelliteEntities();
+
+  const now = new Date();
+  const start = new Date(now.getTime() - 30 * 60 * 1000);
+  const stop = new Date(now.getTime() + SATELLITE_ORBIT_SECONDS * 1000);
+  const labelsOn = ($("#layer-labels") as HTMLInputElement).checked;
+  const seen = new Set<string>();
+
+  viewer.clock.startTime = JulianDate.fromDate(start);
+  viewer.clock.stopTime = JulianDate.fromDate(stop);
+  if (!liveClockInitialized) {
+    viewer.clock.currentTime = JulianDate.fromDate(now);
+    viewer.clock.multiplier = 1;
+    viewer.clock.shouldAnimate = true;
+    liveClockInitialized = true;
+  } else {
+    viewer.clock.shouldAnimate = true;
+  }
+
+  for (const row of payload.objects || []) {
+    try {
+      const name = String(row.OBJECT_NAME || row.object_name || "SATELLITE");
+      const norad = String(row.NORAD_CAT_ID || row.OBJECT_ID || name);
+      const satrec: any = row.TLE_LINE1 && row.TLE_LINE2
+        ? satellite.twoline2satrec(row.TLE_LINE1, row.TLE_LINE2)
+        : satellite.json2satrec(row);
+      const positionProperty = new SampledPositionProperty();
+      let samples = 0;
+
+      for (let offset = -1800; offset <= SATELLITE_ORBIT_SECONDS; offset += SATELLITE_SAMPLE_SECONDS) {
+        const sampleDate = new Date(now.getTime() + offset * 1000);
+        const state = satellite.propagate(satrec, sampleDate);
+        if (!state?.position) continue;
+        const geo = satellite.eciToGeodetic(state.position, satellite.gstime(sampleDate));
+        const lon = satellite.degreesLong(geo.longitude);
+        const lat = satellite.degreesLat(geo.latitude);
+        const heightKm = geo.height;
+        if (![lon, lat, heightKm].every(Number.isFinite)) continue;
+        positionProperty.addSample(
+          JulianDate.fromDate(sampleDate),
+          Cartesian3.fromDegrees(lon, lat, heightKm * 1000)
+        );
+        samples += 1;
+      }
+
+      if (samples < 2) continue;
+      seen.add(norad);
+      const entity = viewer.entities.add({
+        id: `satellite-${norad}`,
+        name,
+        position: positionProperty,
+        billboard: new BillboardGraphics({
+          image: SATELLITE_ICON,
+          width: 18,
+          height: 18,
+          scale: 0.9,
+        }),
+        label: {
+          text: name,
+          font: "10px monospace",
+          show: labelsOn,
+          showBackground: true,
+          backgroundColor: Color.fromCssColorString("rgba(12,6,20,0.78)"),
+          fillColor: Color.fromCssColorString("#e9d5ff"),
+          pixelOffset: new Cartesian2(10, -6),
+        },
+        path: new PathGraphics({
+          show: true,
+          trailTime: 45 * 60,
+          leadTime: SATELLITE_ORBIT_SECONDS,
+          width: 1,
+          resolution: SATELLITE_SAMPLE_SECONDS,
+          material: Color.fromCssColorString("rgba(192,132,252,0.55)"),
+        }),
+        properties: new PropertyBag({
+          entity_type: "satellite",
+          source: "celestrak",
+          name,
+          norad,
+          orbit_window_seconds: SATELLITE_ORBIT_SECONDS,
+          sample_interval_seconds: SATELLITE_SAMPLE_SECONDS,
+        }),
+      });
+      satelliteEntities.set(norad, entity);
+    } catch {
+      continue;
+    }
+  }
+
+  setStatus(`SATELLITES LIVE • ${satelliteEntities.size}`, "ready");
 }
 
 function removeLiveLayer(name: string): void {
@@ -365,10 +545,6 @@ async function addLiveGeoJson(name: string, url: string, labelField?: string): P
   await viewer.dataSources.add(ds);
 }
 
-async function refreshAircraft(): Promise<void> {
-  await addLiveGeoJson("aircraft", "/v1/live/aircraft?bbox=" + encodeURIComponent(cameraBbox()), "callsign");
-}
-
 async function refreshEarthquakes(): Promise<void> {
   await addLiveGeoJson("earthquakes", "/v1/live/earthquakes?feed=all_day", "title");
 }
@@ -397,43 +573,6 @@ async function refreshShips(): Promise<void> {
   await viewer.dataSources.add(ds);
 }
 
-async function refreshSatellites(): Promise<void> {
-  const payload = await requestJson("/v1/live/satellites?group=active&limit=1000");
-  removeLiveLayer("satellites");
-  const now = new Date();
-  const features: any[] = [];
-  for (const row of payload.objects || []) {
-    try {
-      const name = String(row.OBJECT_NAME || row.object_name || "SATELLITE");
-      const satrec: any = row.TLE_LINE1 && row.TLE_LINE2
-        ? satellite.twoline2satrec(row.TLE_LINE1, row.TLE_LINE2)
-        : satellite.json2satrec(row);
-      const state = satellite.propagate(satrec, now);
-      if (!state?.position) continue;
-      const geo = satellite.eciToGeodetic(state.position, satellite.gstime(now));
-      const lon = satellite.degreesLong(geo.longitude);
-      const lat = satellite.degreesLat(geo.latitude);
-      const heightKm = geo.height;
-      if (!Number.isFinite(lon) || !Number.isFinite(lat) || !Number.isFinite(heightKm)) continue;
-      features.push({
-        type: "Feature",
-        geometry: { type: "Point", coordinates: [lon, lat, heightKm * 1000] },
-        properties: { entity_type: "satellite", source: "celestrak", name, norad: row.NORAD_CAT_ID || row.OBJECT_ID || null },
-      });
-    } catch { }
-  }
-  const ds = await GeoJsonDataSource.load({ type: "FeatureCollection", features }, { clampToGround: false });
-  ds.name = "satellites";
-  ds.entities.values.forEach((entity: Entity) => {
-    if (entity.point) {
-      entity.point.color = new ConstantProperty(Color.fromCssColorString("#c084fc"));
-      entity.point.pixelSize = new ConstantProperty(4);
-    }
-  });
-  liveSources.set("satellites", ds);
-  await viewer.dataSources.add(ds);
-}
-
 async function refreshLiveLayers(): Promise<void> {
   const aircraftOn = ($("#layer-aircraft") as HTMLInputElement).checked;
   const satellitesOn = ($("#layer-satellites") as HTMLInputElement).checked;
@@ -442,7 +581,7 @@ async function refreshLiveLayers(): Promise<void> {
   const shipsOn = ($("#layer-ships") as HTMLInputElement).checked;
   try {
     if (!aircraftOn) removeAircraftEntities(); else await refreshAircraft();
-    if (satellitesOn) await refreshSatellites(); else removeLiveLayer("satellites");
+    if (satellitesOn) await refreshSatellites(); else removeSatelliteEntities();
     if (earthquakesOn) await refreshEarthquakes(); else removeLiveLayer("earthquakes");
     if (firesOn) await refreshFires(); else removeLiveLayer("fires");
     if (shipsOn) await refreshShips(); else removeLiveLayer("ships");
@@ -625,6 +764,47 @@ async function loadTimeline(days: number): Promise<void> {
 
 function selectEntityFromGlobe(entity: Entity | undefined): void {
   if (!entity) return;
+  const entityType = entity.properties?.entity_type?.getValue?.();
+  if (entityType === "aircraft") {
+    const props: any = {};
+    for (const key of ["icao24", "callsign", "category", "source", "altitude_m", "velocity_mps", "heading_deg"]) {
+      props[key] = entity.properties?.[key]?.getValue?.();
+    }
+    const tracked = viewer.trackedEntity === entity;
+    if (tracked) {
+      viewer.trackedEntity = undefined;
+      $("#record-state").textContent = "AIRCRAFT";
+      setStatus("TRACK RELEASED", "ready");
+    } else {
+      viewer.trackedEntity = entity;
+      $("#record-state").textContent = "AIRCRAFT • TRACKING";
+      setStatus(`TRACKING ${String(props.callsign || props.icao24 || "AIRCRAFT")}`, "ready");
+    }
+    $("#inspector-title").textContent = String(props.callsign || props.icao24 || "Aircraft");
+    $("#world-state").textContent = "LIVE TELEMETRY";
+    $("#observed-at").textContent = formatTime(new Date().toISOString());
+    $("#valid-from").textContent = "LIVE / 10S POLL";
+    $("#entity-confidence").textContent = "SOURCE: OPENSKY";
+    $("#properties").textContent = JSON.stringify(props, null, 2);
+    $("#evidence-list").innerHTML = '<span class="muted">Live telemetry • public OpenSky state vector • not authoritative for identity.</span>';
+    return;
+  }
+  if (entityType === "satellite") {
+    const props: any = {};
+    for (const key of ["name", "norad", "source", "orbit_window_seconds", "sample_interval_seconds"]) {
+      props[key] = entity.properties?.[key]?.getValue?.();
+    }
+    viewer.trackedEntity = entity;
+    $("#record-state").textContent = "SATELLITE • TRACKING";
+    $("#inspector-title").textContent = String(props.name || "Satellite");
+    $("#world-state").textContent = "LIVE ORBIT";
+    $("#observed-at").textContent = formatTime(new Date().toISOString());
+    $("#valid-from").textContent = "TLE / SGP4";
+    $("#entity-confidence").textContent = "DERIVED ORBIT";
+    $("#properties").textContent = JSON.stringify(props, null, 2);
+    $("#evidence-list").innerHTML = '<span class="muted">Orbit propagated client-side from CelesTrak orbital elements.</span>';
+    return;
+  }
   const props = entity.properties as any;
   const id = props?.entity_id?.getValue?.() || props?.entityId?.getValue?.() || entity.id;
   if (!id) return;
@@ -655,7 +835,11 @@ $("#layer-earthquakes").addEventListener("change", () => void refreshLiveLayers(
 $("#layer-fires").addEventListener("change", () => void refreshLiveLayers());
 $("#layer-ships").addEventListener("change", () => void refreshLiveLayers());
 window.setInterval(() => {
-  if (runtimeReady && ($("#layer-aircraft") as HTMLInputElement).checked) void refreshAircraft();
+  if (!runtimeReady) return;
+  if (($("#layer-aircraft") as HTMLInputElement).checked) void refreshAircraft();
+  if (($("#layer-satellites") as HTMLInputElement).checked && !viewer.clock.shouldAnimate) {
+    viewer.clock.shouldAnimate = true;
+  }
 }, AIRCRAFT_REFRESH_MS);
 $("#layer-weather").addEventListener("change", async () => {
   if (!(($("#layer-weather") as HTMLInputElement).checked)) return;
