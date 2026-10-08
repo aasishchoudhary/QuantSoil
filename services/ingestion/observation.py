@@ -1,12 +1,12 @@
 """Deterministic ingestion boundary for external observations."""
 from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from hashlib import sha256
-import json
 from typing import Any, Mapping
 
-from packages.contracts.observation import Observation
+from packages.contracts.evidence import EvidenceRecord, payload_sha256
+from packages.contracts.observation import Observation, Provenance
 from packages.contracts.observation_evidence import observation_to_evidence
 
 
@@ -17,35 +17,28 @@ class IngestionError(ValueError):
 @dataclass(frozen=True)
 class IngestionResult:
     observation: Observation
-    evidence: Any
+    evidence: EvidenceRecord
     duplicate: bool
 
 
-def _canonical_hash(payload: Mapping[str, Any]) -> str:
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
-    return sha256(encoded).hexdigest()
-
-
 class ObservationIngestor:
-    """Validate, normalize and deduplicate observations before persistence."""
+    """Validate, normalize, and deterministically deduplicate observations."""
 
     def __init__(self) -> None:
-        self._seen: set[str] = set()
+        self._seen: set[tuple[str, str, str]] = set()
 
     def ingest(
-        self,
-        *,
-        source: str,
-        source_record_id: str,
-        payload: Mapping[str, Any],
-        observed_at: datetime,
-        acquired_at: datetime | None = None,
-        license_terms: str | None = None,
-        parser_version: str = "unknown",
-        schema_version: str = "1",
+        self, *, source: str, source_record_id: str,
+        payload: Mapping[str, Any], observed_at: datetime,
+        acquired_at: datetime | None = None, license_class: str,
+        parser_version: str, schema_version: str,
     ) -> IngestionResult:
         if not source.strip() or not source_record_id.strip():
             raise IngestionError("source and source_record_id are required")
+        if not license_class.strip():
+            raise IngestionError("license_class is required")
+        if not parser_version.strip() or not schema_version.strip():
+            raise IngestionError("parser_version and schema_version are required")
         if not isinstance(payload, Mapping) or not payload:
             raise IngestionError("payload must be a non-empty mapping")
         if observed_at.tzinfo is None:
@@ -55,23 +48,20 @@ class ObservationIngestor:
         if acquired_at is not None and acquired_at < observed_at:
             raise IngestionError("acquired_at cannot precede observed_at")
 
-        raw_hash = _canonical_hash(payload)
-        dedupe_key = f"{source}:{source_record_id}:{raw_hash}"
-        duplicate = dedupe_key in self._seen
-        self._seen.add(dedupe_key)
+        normalized = dict(payload)
+        raw_hash = payload_sha256(normalized)
+        key = (source, source_record_id, raw_hash)
+        duplicate = key in self._seen
+        self._seen.add(key)
 
         observation = Observation(
-            observation_id=dedupe_key,
-            source=source,
-            source_record_id=source_record_id,
-            observed_at=observed_at,
-            acquired_at=acquired_at,
-            ingested_at=datetime.now(timezone.utc),
-            payload=dict(payload),
-            raw_payload_hash=raw_hash,
-            license_terms=license_terms,
-            parser_version=parser_version,
-            schema_version=schema_version,
+            observation_id=f"{source}:{source_record_id}:{raw_hash}",
+            source=source, source_record_id=source_record_id,
+            observed_at=observed_at, acquired_at=acquired_at,
+            ingested_at=datetime.now(timezone.utc), payload=normalized,
+            provenance=Provenance(raw_payload_hash=raw_hash, parser_version=parser_version),
         )
-        evidence = observation_to_evidence(observation)
-        return IngestionResult(observation=observation, evidence=evidence, duplicate=duplicate)
+        evidence = observation_to_evidence(
+            observation, license_class=license_class, schema_version=schema_version
+        )
+        return IngestionResult(observation, evidence, duplicate)
