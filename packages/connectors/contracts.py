@@ -82,3 +82,41 @@ class ConnectorRun:
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+@dataclass(frozen=True)
+class IngestionAudit:
+    run_id: str
+    source: str
+    started_at: datetime
+    finished_at: datetime
+    records_seen: int
+    records_accepted: int
+    records_rejected: int
+    attempts: int
+    error_type: str | None = None
+    def __post_init__(self) -> None:
+        if self.started_at.tzinfo is None or self.finished_at.tzinfo is None:
+            raise ConnectorError("audit timestamps must be timezone-aware")
+        if self.finished_at < self.started_at:
+            raise ConnectorError("finished_at cannot precede started_at")
+        if self.attempts < 1 or min(self.records_seen, self.records_accepted, self.records_rejected) < 0:
+            raise ConnectorError("invalid audit counters")
+        if self.records_accepted + self.records_rejected > self.records_seen:
+            raise ConnectorError("accepted + rejected cannot exceed seen")
+
+
+@dataclass(frozen=True)
+class RejectedRecord:
+    run_id: str
+    source: str
+    source_record_id: str
+    raw_payload_hash: str
+    status: str
+    reasons: tuple[str, ...]
+    observed_at: datetime
+    rejected_at: datetime
+    def __post_init__(self) -> None:
+        if self.status not in {"stale", "invalid", "duplicate"}:
+            raise ConnectorError("unsupported rejection status")
+        if not self.reasons:
+            raise ConnectorError("rejection reasons are required")
