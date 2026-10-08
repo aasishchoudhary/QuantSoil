@@ -11,7 +11,7 @@ from packages.connectors.usgs import USGSEarthquakeConnector
 from packages.connectors.noaa import NOAAWeatherAlertsConnector
 from packages.connectors.nasa_eonet import NASAEONETConnector
 from packages.connectors.registry import SourceRegistry
-from packages.repositories.evidence_payload_s3 import S3EvidencePayloadStore
+from packages.repositories.evidence_payload_s3 import LocalEvidencePayloadStore, S3EvidencePayloadStore
 from packages.repositories.evidence_postgres import PostgresEvidenceRepository
 from packages.repositories.world_state_postgres import PostgresWorldStateRepository
 from packages.repositories.map_postgres import PostgresMapRepository
@@ -59,7 +59,15 @@ def build_components():
     queue = PostgresJobQueue(connection)
     health = PostgresSourceHealthRepository(connection)
     audit = PostgresIngestionAuditRepository(connection)
-    evidence_payload = S3EvidencePayloadStore(os.environ["EVIDENCE_BUCKET"])
+    evidence_storage = os.getenv("EVIDENCE_STORAGE", "s3").strip().lower()
+    if evidence_storage == "filesystem":
+        evidence_payload = LocalEvidencePayloadStore(
+            os.getenv("EVIDENCE_LOCAL_ROOT", os.path.expanduser("~/.quantsoil/evidence"))
+        )
+    elif evidence_storage == "s3":
+        evidence_payload = S3EvidencePayloadStore(os.environ["EVIDENCE_BUCKET"])
+    else:
+        raise RuntimeError("EVIDENCE_STORAGE must be either 's3' or 'filesystem'")
     evidence_metadata = PostgresEvidenceRepository(connection)
     runner = ConnectorRunner(
         registry, ObservationIngestor(),
