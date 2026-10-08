@@ -2,6 +2,7 @@
 from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -23,7 +24,7 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
         if request.url.path != "/health" and os.getenv("ANALYST_AUTH_MODE", "optional").lower() == "required":
             expected = os.getenv("ANALYST_BEARER_TOKEN", "")
             supplied = request.headers.get("Authorization", "")
-            if not expected or supplied != f"Bearer {expected}":
+            if not expected or not hmac.compare_digest(supplied, f"Bearer {expected}"):
                 return JSONResponse(
                     status_code=401,
                     content={"detail":"authentication required"},
