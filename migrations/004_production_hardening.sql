@@ -83,3 +83,27 @@ CREATE INDEX IF NOT EXISTS idx_rejected_records_run ON rejected_records(run_id);
 CREATE INDEX IF NOT EXISTS idx_rejected_records_source_record ON rejected_records(source, source_record_id);
 
 ALTER TABLE rejected_records ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+
+-- Runtime job queue. Claims use row-level leases so multiple workers can
+-- consume safely without requiring an external broker for the first deployment.
+CREATE TABLE IF NOT EXISTS runtime_jobs (
+    job_id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL UNIQUE,
+    scheduled_at TIMESTAMPTZ NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    status TEXT NOT NULL CHECK (status IN ('queued','running','succeeded','retry','failed')),
+    lease_until TIMESTAMPTZ,
+    last_error_type TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK ((status = 'running') = (lease_until IS NOT NULL))
+);
+
+CREATE INDEX IF NOT EXISTS idx_runtime_jobs_claim
+    ON runtime_jobs (status, scheduled_at, job_id);
+
+CREATE INDEX IF NOT EXISTS idx_runtime_jobs_lease
+    ON runtime_jobs (lease_until)
+    WHERE status = 'running';
