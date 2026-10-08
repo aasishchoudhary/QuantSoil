@@ -22,7 +22,12 @@ class S3EvidencePayloadStore:
         body = canonical_json_bytes(record.payload)
         key = f"{self.prefix}{record.raw_payload_hash[:2]}/{record.raw_payload_hash}.json"
         try:
-            self._client.head_object(Bucket=self.bucket, Key=key)
+            existing = self._client.head_object(Bucket=self.bucket, Key=key)
+            existing_hash = str(existing.get("Metadata", {}).get("sha256", ""))
+            if existing_hash and existing_hash != record.raw_payload_hash:
+                raise RuntimeError("existing evidence object hash does not match content address")
+            if int(existing.get("ContentLength", -1)) != len(body):
+                raise RuntimeError("existing evidence object length does not match payload")
             return f"s3://{self.bucket}/{key}", len(body)
         except Exception as exc:
             response = getattr(exc, "response", {})
@@ -34,6 +39,7 @@ class S3EvidencePayloadStore:
                 Key=key,
                 Body=body,
                 ContentType="application/json",
+                IfNoneMatch="*",
                 Metadata={
                     "source": record.source,
                     "source-record-id": record.source_record_id,
