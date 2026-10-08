@@ -5,7 +5,7 @@ from datetime import datetime
 from time import sleep
 from typing import Callable, Protocol
 
-from packages.connectors.contracts import Connector, ConnectorError, ConnectorRun, utc_now
+from packages.connectors.contracts import Connector, ConnectorError, ConnectorRun, IngestionAudit, RejectedRecord, utc_now
 from packages.evaluation.data_quality import SourceHealth
 from services.connectors.health import record_failure, record_success
 from services.connectors.retry import RetryPolicy, RetryableConnectorError
@@ -40,8 +40,12 @@ class ConnectorRunner:
         started = now or utc_now()
         seen = accepted = rejected = 0
         error = None
+        attempts = 0
+        self.last_audit = None
+        self.last_rejections = []
 
         for attempt in range(1, self.retry_policy.max_attempts + 1):
+            attempts = attempt
             try:
                 for record in connector.fetch(since=since):
                     seen += 1
@@ -60,6 +64,16 @@ class ConnectorRunner:
                         accepted += 1
                     else:
                         rejected += 1
+                        self.last_rejections.append(RejectedRecord(
+                            run_id=f"run_{spec.source}_{started.isoformat()}",
+                            source=spec.source,
+                            source_record_id=record.source_record_id,
+                            raw_payload_hash=result.evidence.raw_payload_hash,
+                            status=result.quality.status.value if not result.duplicate else "duplicate",
+                            reasons=result.quality.reasons or (("duplicate",) if result.duplicate else ("rejected",)),
+                            observed_at=record.observed_at,
+                            rejected_at=started,
+                        ))
                 self._health_success(spec.source, started)
                 break
             except RetryableConnectorError as exc:
@@ -78,7 +92,14 @@ class ConnectorRunner:
         finished = now or utc_now()
         if finished < started:
             finished = started
-        return ConnectorRun(spec.source, started, finished, seen, accepted, rejected, error)
+        run = ConnectorRun(spec.source, started, finished, seen, accepted, rejected, error)
+        self.last_audit = IngestionAudit(
+            run_id=f"run_{spec.source}_{started.isoformat()}", source=spec.source,
+            started_at=started, finished_at=finished, records_seen=seen,
+            records_accepted=accepted, records_rejected=rejected, attempts=attempts,
+            error_type=(type(error).__name__ if error else None),
+        )
+        return run
 
     def _health_success(self, source: str, timestamp: datetime) -> None:
         if self.health_store is not None:
