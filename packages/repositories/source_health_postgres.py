@@ -111,16 +111,17 @@ class PostgresIngestionAuditRepository:
         query = """
         INSERT INTO rejected_records
         (rejection_id, run_id, source, source_record_id, raw_payload_hash,
-         status, reasons, observed_at, rejected_at)
-        VALUES (%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s)
+         status, reasons, observed_at, rejected_at, payload)
+        VALUES (%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s::jsonb)
         ON CONFLICT (rejection_id) DO NOTHING
         """
         import json
         try:
             with self._connection.cursor() as cursor:
-                cursor.execute(query, (f"{rejection.run_id}:{rejection.source_record_id}:{rejection.raw_payload_hash}",
-                    rejection.run_id,rejection.source,rejection.source_record_id,rejection.raw_payload_hash,
-                    rejection.status,json.dumps(list(rejection.reasons)),rejection.observed_at,rejection.rejected_at))
+                cursor.execute(query, (rejection.rejection_id, rejection.run_id, rejection.source,
+                    rejection.source_record_id, rejection.raw_payload_hash, rejection.status,
+                    json.dumps(list(rejection.reasons)), rejection.observed_at,
+                    rejection.rejected_at, json.dumps(rejection.payload)))
             self._connection.commit()
             return rejection
         except Exception as exc:
