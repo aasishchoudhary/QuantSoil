@@ -12,7 +12,7 @@ def create_app(service: AnalystService) -> FastAPI:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.get("/v1/analyst/snapshot")
+    @app.get("/snapshot")
     def snapshot(entity_ids: str = Query(...), at: datetime = Query(...)) -> dict[str, Any]:
         try:
             result = service.snapshot(tuple(x.strip() for x in entity_ids.split(",") if x.strip()), at=at)
@@ -31,7 +31,7 @@ def create_app(service: AnalystService) -> FastAPI:
             },
         }
 
-    @app.get("/v1/analyst/spatial")
+    @app.get("/spatial")
     def spatial(
         bbox: str = Query(..., description="minLon,minLat,maxLon,maxLat"),
         at: datetime | None = Query(default=None),
@@ -52,7 +52,7 @@ def create_app(service: AnalystService) -> FastAPI:
             ],
         }
 
-    @app.get("/v1/analyst/timeline/{entity_id}")
+    @app.get("/timeline/{entity_id}")
     def timeline(entity_id: str, start: datetime = Query(...), end: datetime = Query(...)) -> dict[str, Any]:
         try:
             result = service.timeline(entity_id, start=start, end=end)
