@@ -28,7 +28,6 @@ REQUIRED = [
     "scripts/backup_postgres.sh",
     "scripts/restore_postgres.sh",
 ]
-REQUIRED_MIGRATIONS = [f"migrations/{i:03d}_" for i in range(1, 9)]
 
 
 def fail(message: str) -> None:
@@ -48,10 +47,28 @@ def main() -> int:
         except json.JSONDecodeError as exc:
             fail(f"invalid JSON schema {path}: {exc}")
 
-    migrations = sorted(p.name for p in (ROOT / "migrations").glob("*.sql"))
-    for prefix in REQUIRED_MIGRATIONS:
-        if not any(name.startswith(prefix) for name in migrations):
-            fail(f"migration chain missing {prefix}*")
+    # Validate the same union of migration directories used by the runtime loader.
+    migration_paths = sorted((ROOT / "db" / "migrations").glob("*.sql"))
+    migration_paths += sorted((ROOT / "migrations").glob("*.sql"))
+    if not migration_paths:
+        fail("no SQL migration files found in migrations/ or db/migrations/")
+    numbered = []
+    pattern = re.compile(r"^(\\d+)(?:[_-]|$)")
+    for path in migration_paths:
+        match = pattern.match(path.stem)
+        if not match:
+            fail(f"migration filename must begin with a numeric sequence: {path}")
+        numbered.append((int(match.group(1)), path))
+    numbered.sort(key=lambda item: (item[0], item[1].as_posix()))
+    seen = {}
+    for number, path in numbered:
+        if number in seen:
+            fail(f"duplicate migration sequence {number:03d}: {seen[number]} and {path}")
+        seen[number] = path
+    numbers = [number for number, _ in numbered]
+    expected = list(range(numbers[0], numbers[-1] + 1))
+    if numbers != expected:
+        fail(f"migration chain has a numeric gap: found={numbers}, expected={expected}")
 
     namespace = (ROOT / "k8s/namespace.yaml").read_text(encoding="utf-8")
     network = (ROOT / "k8s/network-policy.yaml").read_text(encoding="utf-8")
@@ -92,7 +109,8 @@ def main() -> int:
             fail(f"possible embedded credential detected in {rel}")
 
     print("PASS: repository production acceptance invariants")
-    print("PASS: schemas, migration chain, Kubernetes hardening, network deny, shell syntax, secret scan")
+    print(f"PASS: migration chain ({len(numbered)} files): {", ".join(path.as_posix() for _, path in numbered)}")
+    print("PASS: schemas, Kubernetes hardening, network deny, shell syntax, secret scan")
     print("DEFERRED: target-cluster/OIDC/TLS/load/PITR acceptance requires real infrastructure")
     return 0
 
