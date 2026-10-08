@@ -235,7 +235,8 @@ async function addLiveGeoJson(name: string, url: string, labelField?: string): P
       entity.point.outlineColor = new ConstantProperty(Color.fromCssColorString("#0b141b"));
       entity.point.outlineWidth = new ConstantProperty(2);
     }
-    if (entity.label) entity.label.show = new ConstantProperty(false);    if (labelField && entity.properties) {
+    if (entity.label) entity.label.show = new ConstantProperty(false);
+    if (labelField && entity.properties) {
       const value = entity.properties[labelField]?.getValue?.();
       if (value) entity.name = String(value);
     }
