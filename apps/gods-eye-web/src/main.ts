@@ -2,6 +2,7 @@ import {
   Viewer,
   Cartesian3,
   Cartesian2,
+  Cartographic,
   JulianDate,
   SampledPositionProperty,
   ClockRange,
@@ -132,6 +133,11 @@ app.innerHTML = `
       </section>
 
       <section id="inspector" class="inspector-body">
+        <div id="weather-card" class="inspector-card hidden">
+          <div class="card-title">LIVE WEATHER • OPEN-METEO</div>
+          <div id="weather-content" class="overview-grid"><span class="muted">Enable weather to load current conditions.</span></div>
+          <div id="weather-updated" class="muted"></div>
+        </div>
         <div class="overview-grid">
           <div><small>WORLD STATE</small><strong id="world-state">—</strong></div>
           <div><small>OBSERVED</small><strong id="observed-at">—</strong></div>
@@ -619,6 +625,40 @@ async function refreshFires(): Promise<void> {
   await addLiveGeoJson("fires", "/v1/live/fires?bbox=" + encodeURIComponent(cameraBbox()) + "&days=1");
 }
 
+async function refreshWeather(): Promise<void> {
+  const card = $("#weather-card");
+  const content = $("#weather-content");
+  const updated = $("#weather-updated");
+  card.classList.remove("hidden");
+  content.textContent = "Loading current conditions…";
+  const canvas = viewer.scene.canvas;
+  const target = viewer.camera.pickEllipsoid(
+    new Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2),
+    viewer.scene.globe.ellipsoid,
+  );
+  const location = target
+    ? Cartographic.fromCartesian(target, viewer.scene.globe.ellipsoid)
+    : viewer.camera.positionCartographic;
+  if (!location) throw new Error("Unable to determine the current map location");
+  const lat = location.latitude * 180 / Math.PI;
+  const lon = location.longitude * 180 / Math.PI;
+  const payload = await requestJson(`/v1/live/weather?lat=${encodeURIComponent(lat.toFixed(4))}&lon=${encodeURIComponent(lon.toFixed(4))}`);
+  const current = payload.data?.current;
+  if (!current) throw new Error("Weather provider returned no current conditions");
+  const units = payload.data.current_units || {};
+  const fields: Array<[string, string]> = [
+    ["TEMPERATURE", `${current.temperature_2m ?? "—"} ${units.temperature_2m ?? "°C"}`],
+    ["FEELS LIKE", `${current.apparent_temperature ?? "—"} ${units.apparent_temperature ?? "°C"}`],
+    ["WIND", `${current.wind_speed_10m ?? "—"} ${units.wind_speed_10m ?? "km/h"}`],
+    ["HUMIDITY", `${current.relative_humidity_2m ?? "—"}${units.relative_humidity_2m ?? "%"}`],
+    ["PRECIPITATION", `${current.precipitation ?? "—"} ${units.precipitation ?? "mm"}`],
+  ];
+  content.innerHTML = fields.map(([label, value]) =>
+    `<div><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></div>`
+  ).join("");
+  updated.textContent = `Map centre ${lat.toFixed(2)}, ${lon.toFixed(2)} • Retrieved ${formatTime(payload.retrieved_at)} • Source: Open-Meteo`;
+}
+
 async function refreshShips(): Promise<void> {
   const payload = await requestJson("/v1/live/ships");
   const features = (payload.ships || []).map((ship: any) => ({
@@ -645,6 +685,7 @@ async function refreshLiveLayers(): Promise<void> {
   const earthquakesOn = ($("#layer-earthquakes") as HTMLInputElement).checked;
   const firesOn = ($("#layer-fires") as HTMLInputElement).checked;
   const shipsOn = ($("#layer-ships") as HTMLInputElement).checked;
+  const weatherOn = ($("#layer-weather") as HTMLInputElement).checked;
 
   // One provider outage must not prevent unrelated live layers from refreshing.
   const jobs: Array<{ name: string; run: () => Promise<void> }> = [];
@@ -658,6 +699,8 @@ async function refreshLiveLayers(): Promise<void> {
   else removeLiveLayer("fires");
   if (shipsOn) jobs.push({ name: "SHIPS", run: refreshShips });
   else removeLiveLayer("ships");
+  if (weatherOn) jobs.push({ name: "WEATHER", run: refreshWeather });
+  else $("#weather-card").classList.add("hidden");
 
   const results = await Promise.all(jobs.map(async (job) => {
     try {
@@ -939,6 +982,7 @@ $("#layer-satellites").addEventListener("change", () => void refreshLiveLayers()
 $("#layer-earthquakes").addEventListener("change", () => void refreshLiveLayers());
 $("#layer-fires").addEventListener("change", () => void refreshLiveLayers());
 $("#layer-ships").addEventListener("change", () => void refreshLiveLayers());
+$("#layer-weather").addEventListener("change", () => void refreshLiveLayers());
 window.setInterval(() => {
   if (!runtimeReady) return;
   if (($("#layer-aircraft") as HTMLInputElement).checked) void refreshAircraft();
