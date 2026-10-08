@@ -12,6 +12,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 REQUIRED = [
@@ -93,10 +94,13 @@ def main() -> int:
     if "policyTypes: [Ingress, Egress]" not in network:
         fail("default-deny policy must cover ingress and egress")
 
-    if "image: ghcr.io/aasishchoudhary/quantsoil:v" not in runtime:
-        fail("runtime image must use a published release tag")
-    if "image: ghcr.io/aasishchoudhary/quantsoil-web:v" not in web:
-        fail("web image must use a published release tag")
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    version = str(project["project"]["version"])
+    expected_tag = f"v{version}"
+    if f"image: ghcr.io/aasishchoudhary/quantsoil:{expected_tag}" not in runtime:
+        fail(f"runtime image must match project release tag {expected_tag}")
+    if f"image: ghcr.io/aasishchoudhary/quantsoil-web:{expected_tag}" not in web:
+        fail(f"web image must match project release tag {expected_tag}")
 
     for name, manifest in (("runtime", runtime), ("web", web)):
         if "runAsNonRoot: true" not in manifest:
