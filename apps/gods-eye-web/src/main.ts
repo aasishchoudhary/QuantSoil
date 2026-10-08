@@ -359,7 +359,8 @@ async function loadTimeline(days: number): Promise<void> {
 
 function selectEntityFromGlobe(entity: Entity | undefined): void {
   if (!entity) return;
-  const id = entity.properties?.entity_id?.getValue?.() || entity.properties?.entityId?.getValue?.() || entity.id;
+  const props = entity.properties as any;
+  const id = props?.entity_id?.getValue?.() || props?.entityId?.getValue?.() || entity.id;
   if (!id) return;
   entityInput.value = String(id);
   inspectEntity(String(id));
