@@ -90,6 +90,11 @@ def main() -> int:
     if "policyTypes: [Ingress, Egress]" not in network:
         fail("default-deny policy must cover ingress and egress")
 
+    if "image: ghcr.io/aasishchoudhary/quantsoil:v" not in runtime:
+        fail("runtime image must use a published release tag")
+    if "image: ghcr.io/aasishchoudhary/quantsoil-web:v" not in web:
+        fail("web image must use a published release tag")
+
     for name, manifest in (("runtime", runtime), ("web", web)):
         if "runAsNonRoot: true" not in manifest:
             fail(f"{name} workload is not explicitly non-root")
