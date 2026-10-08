@@ -13,7 +13,7 @@ app.innerHTML=`
     <label>Entity ID<input id="entity" placeholder="entity-id"/></label>
     <div class="actions"><button id="timeline">Timeline</button><button id="clear">Clear</button></div>
     <div id="results" class="results">Move the globe or query an entity.</div>
-    <footer>OpenStreetMap basemap • intelligence data served by governed analyst API</footer>
+    <footer>© OpenStreetMap contributors • intelligence data served by governed analyst API</footer>
   </aside></main>
 </div>`;
 
