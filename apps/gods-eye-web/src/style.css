@@ -161,14 +161,7 @@ pre{margin:0;padding:11px;color:#9db2be;font:9px/1.6 ui-monospace,monospace;whit
   }
   body.mobile-left-open .left-rail{transform:translateX(0)}
   body.mobile-right-open .right-panel{transform:translateX(0)}
-  body.mobile-left-open:after,
-  body.mobile-right-open:after{
-    content:"";
-    position:fixed;
-    inset:52px 0 29px;
-    background:rgba(0,0,0,.48);
-    z-index:25;
-  }
+
   .panel-section{padding:14px 12px}
   .map-overlay.top-left{left:8px;top:8px}
   .map-overlay.top-right{right:8px;top:8px}
@@ -277,15 +270,7 @@ body.compact-operator .right-panel{
 body.compact-operator.mobile-left-open .left-rail{transform:translateX(0)}
 body.compact-operator.mobile-right-open .right-panel{transform:translateX(0)}
 
-body.compact-operator.mobile-left-open:after,
-body.compact-operator.mobile-right-open:after{
-  content:"";
-  position:fixed;
-  inset:52px 0 29px;
-  background:rgba(0,0,0,.5);
-  z-index:40;
-  pointer-events:auto;
-}
+
 
 body.compact-operator.mobile-left-open .left-rail,
 body.compact-operator.mobile-right-open .right-panel{
@@ -362,4 +347,23 @@ body.compact-operator .osm-attribution{
 .module-btn:focus-visible {
   outline: 2px solid #75d6ff;
   outline-offset: 2px;
+}
+
+
+/* Real scrim element lets touch users dismiss open side panels. */
+.mobile-scrim {
+  display: none;
+  position: fixed;
+  inset: 52px 0 29px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: rgba(0, 0, 0, .48);
+  z-index: 25;
+  cursor: default;
+  touch-action: manipulation;
+}
+body.mobile-left-open .mobile-scrim,
+body.mobile-right-open .mobile-scrim {
+  display: block;
 }
