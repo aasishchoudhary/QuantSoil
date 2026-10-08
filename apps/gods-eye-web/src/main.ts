@@ -72,7 +72,7 @@ app.innerHTML = `
       <section class="panel-section">
         <div class="section-head"><span>DATA LAYERS</span><b>02</b></div>
         <label class="toggle"><input id="layer-entities" type="checkbox" checked/><span></span><em>WORLD STATE ENTITIES</em></label>
-        <label class="toggle"><input id="layer-aircraft" type="checkbox"/><span></span><em>AIRCRAFT / OPENSKY</em></label>
+        <label class="toggle"><input id="layer-aircraft" type="checkbox" checked/><span></span><em>AIRCRAFT / OPENSKY • AUTO-ON</em></label>
         <label class="toggle"><input id="layer-satellites" type="checkbox"/><span></span><em>SATELLITES / CELESTRAK</em></label>
         <label class="toggle"><input id="layer-earthquakes" type="checkbox"/><span></span><em>EARTHQUAKES / USGS</em></label>
         <label class="toggle"><input id="layer-fires" type="checkbox"/><span></span><em>WILDFIRE / NASA FIRMS</em></label>
