@@ -31,6 +31,9 @@ REQUIRED = [
     "scripts/production_cluster_acceptance.sh",
     "infrastructure/aws/evidence/main.tf",
     "infrastructure/aws/evidence/variables.tf",
+    ".github/workflows/ci.yml",
+    ".github/workflows/container.yml",
+    ".github/workflows/autonomous-engineering.yml",
 ]
 
 
@@ -111,6 +114,19 @@ def main() -> int:
         result = subprocess.run(["bash", "-n", str(ROOT / rel)], capture_output=True, text=True)
         if result.returncode:
             fail(f"{rel} has shell syntax errors: {result.stderr.strip()}")
+
+    for workflow_rel in (
+        ".github/workflows/ci.yml",
+        ".github/workflows/container.yml",
+        ".github/workflows/autonomous-engineering.yml",
+    ):
+        workflow = (ROOT / workflow_rel).read_text(encoding="utf-8")
+        for line in workflow.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("uses: ") and not stripped.startswith("uses: ./"):
+                ref = stripped.split("@", 1)[1].split()[0]
+                if not re.fullmatch(r"[0-9a-f]{40}", ref):
+                    fail(f"workflow action is not pinned to a full SHA: {workflow_rel}: {stripped}")
 
     evidence_tf = (ROOT / "infrastructure/aws/evidence/main.tf").read_text(encoding="utf-8")
     for invariant in (
