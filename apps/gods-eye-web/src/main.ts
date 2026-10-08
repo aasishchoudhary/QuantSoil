@@ -44,6 +44,8 @@ app.innerHTML = `
           <button id="india-view">INDIA</button>
           <button id="reset-view">RESET</button>
         </div>
+        <label class="field-label time-label" for="analysis-time">ANALYSIS TIME (UTC)</label>
+        <input id="analysis-time" type="datetime-local"/>
       </section>
 
       <section class="panel-section">
@@ -128,6 +130,7 @@ const statusDot = $("#status-dot");
 const emptyEl = $("#map-empty");
 const resultsEl = $("#timeline-results");
 const entityInput = $("#entity") as HTMLInputElement;
+const analysisTimeInput = $("#analysis-time") as HTMLInputElement;
 const featureCount = $("#feature-count");
 const sourceCount = $("#source-count");
 const evidenceCount = $("#evidence-count");
@@ -260,7 +263,8 @@ async function refreshMap(): Promise<void> {
   const bbox = cameraBbox();
   if (!bbox) return;
   try {
-    const data = await requestJson(`/spatial?bbox=${encodeURIComponent(bbox)}&limit=1000`);
+    const analysisAt = analysisTimeInput.value ? new Date(analysisTimeInput.value).toISOString() : new Date().toISOString();
+    const data = await requestJson(`/spatial?bbox=${encodeURIComponent(bbox)}&at=${encodeURIComponent(analysisAt)}&limit=1000`);
     if (id !== requestSeq) return;
     lastFeatures = data.features || [];
     const old = dataSources.get("analyst");
@@ -379,6 +383,7 @@ entityInput.addEventListener("keydown", (event) => {
 $("#timeline").addEventListener("click", () => void loadTimeline(7));
 $("#timeline-30").addEventListener("click", () => void loadTimeline(30));
 $("#refresh").addEventListener("click", () => void refreshMap());
+analysisTimeInput.addEventListener("change", () => void refreshMap());
 $("#layer-entities").addEventListener("change", setLayerVisibility);
 $("#layer-evidence").addEventListener("change", setLayerVisibility);
 $("#layer-labels").addEventListener("change", setLayerVisibility);
@@ -404,6 +409,8 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
+const now = new Date();
+analysisTimeInput.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 void checkHealth().then((ready) => {
   if (ready) void refreshMap();
 });
