@@ -1,20 +1,15 @@
 {
-  "version": 5,
+  "version": 7,
   "tasks": [
     {
-      "id": "public-source-expansion",
-      "priority": 30,
-      "goal": "Add governed public connectors for weather, disaster, and geospatial feeds using explicit license metadata, schemas, fixtures, and source-health monitoring."
+      "id": "predictive-intelligence",
+      "priority": 60,
+      "goal": "Operationalize evidence-backed probabilistic forecasts, calibration, proper scoring, outcome linkage, and model evaluation without promoting predictions into authoritative state."
     },
     {
-      "id": "production-runtime",
+      "id": "production-security-scale",
       "priority": 70,
-      "goal": "Add persistent queue/stream integration, deployment manifests, health/readiness, backup/recovery procedures, and operational runbooks."
-    },
-    {
-      "id": "analyst-layer",
-      "priority": 80,
-      "goal": "Build evidence-first analyst queries, map views, timelines, and derived-event workflows without allowing unverified AI claims into authoritative state."
+      "goal": "Complete gateway authorization, rate limiting, audit persistence, vector-tile scale testing, backup restore drills, and performance acceptance for production."
     }
   ]
 }
