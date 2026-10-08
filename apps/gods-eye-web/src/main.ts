@@ -153,6 +153,7 @@ const sourceCount = $("#source-count") as HTMLElement;
 const evidenceCount = $("#evidence-count") as HTMLElement;
 const confidenceEl = $("#confidence") as HTMLElement;
 const dataSources = new Map<string, any>();
+const liveSources = new Map<string, any>();
 let requestSeq = 0;
 let lastFeatures: any[] = [];
 let runtimeReady = false;
