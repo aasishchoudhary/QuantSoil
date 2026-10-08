@@ -12,6 +12,7 @@ from packages.connectors.noaa import NOAAWeatherAlertsConnector
 from packages.connectors.nasa_eonet import NASAEONETConnector
 from packages.connectors.registry import SourceRegistry
 from packages.repositories.evidence_payload_s3 import LocalEvidencePayloadStore, S3EvidencePayloadStore
+from packages.repositories.observation_projection_postgres import PostgresObservationProjectionRepository
 from packages.repositories.evidence_postgres import PostgresEvidenceRepository
 from packages.repositories.world_state_postgres import PostgresWorldStateRepository
 from packages.repositories.map_postgres import PostgresMapRepository
@@ -69,6 +70,7 @@ def build_components():
     else:
         raise RuntimeError("EVIDENCE_STORAGE must be either 's3' or 'filesystem'")
     evidence_metadata = PostgresEvidenceRepository(connection)
+    projection = PostgresObservationProjectionRepository(connection)
     runner = ConnectorRunner(
         registry, ObservationIngestor(),
         retry_policy=RetryPolicy(max_attempts=1),
@@ -76,6 +78,7 @@ def build_components():
         audit_store=audit,
         evidence_payload_store=evidence_payload,
         evidence_metadata_store=evidence_metadata,
+        projection_store=projection,
     )
     worker = ConnectorWorker(
         queue, runner, connectors,
