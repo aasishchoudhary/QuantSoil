@@ -116,6 +116,7 @@ def main() -> int:
     for invariant in (
         "object_lock_enabled = true",
         'status = "Enabled"',
+        "aws_s3_bucket_ownership_controls",
         "aws_s3_bucket_public_access_block",
         "aws_s3_bucket_server_side_encryption_configuration",
         "DenyInsecureTransport",
