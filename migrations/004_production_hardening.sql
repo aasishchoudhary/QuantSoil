@@ -23,7 +23,7 @@ BEGIN
 END $$;
 
 CREATE TABLE IF NOT EXISTS assertions (
-    assertion_id UUID PRIMARY KEY,
+    assertion_id TEXT PRIMARY KEY,
     entity_id TEXT NOT NULL,
     property_name TEXT NOT NULL,
     value JSONB NOT NULL,
