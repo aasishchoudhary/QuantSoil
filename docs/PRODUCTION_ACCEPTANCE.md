@@ -76,3 +76,11 @@ Lock, uses server-side encryption, blocks public access, and denies non-TLS
 requests. The runtime still requires a least-privilege workload identity to be
 granted write/read permissions separately. Applying and verifying this Terraform
 in the target AWS account remains an infrastructure acceptance gate.
+
+
+### CI/CD supply-chain integrity
+
+All external GitHub Actions used by the production workflows are pinned to
+full-length commit SHAs, and the repository acceptance gate rejects mutable
+action tags. GitHub documents full-SHA pinning as the immutable action-reference
+mechanism for reducing workflow supply-chain risk.
