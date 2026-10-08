@@ -7,7 +7,7 @@ from datetime import timedelta, timezone, datetime
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from packages.connectors.contracts import USGSEarthquakeConnector
+from packages.connectors.usgs import USGSEarthquakeConnector
 from packages.connectors.noaa import NOAAWeatherAlertsConnector
 from packages.connectors.registry import SourceRegistry
 from packages.repositories.evidence_payload_s3 import S3EvidencePayloadStore
