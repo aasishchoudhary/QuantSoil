@@ -2,16 +2,21 @@
 
 Observations are source assertions. They are not predictions and must retain provenance.
 """
+
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 import hashlib
 import json
 
+
 @dataclass(frozen=True)
 class Provenance:
     raw_payload_hash: str
     parser_version: str
+
 
 @dataclass(frozen=True)
 class Observation:
@@ -22,6 +27,7 @@ class Observation:
     ingested_at: datetime
     payload: dict[str, Any]
     provenance: Provenance
+    acquired_at: datetime | None = None
 
     @staticmethod
     def payload_hash(payload: dict[str, Any]) -> str:

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gods-eye-world-intelligence.dev/schemas/entity-state.schema.json",
+  "title": "Entity State",
+  "description": "Versioned temporal state projection retaining evidence references.",
+  "type": "object",
+  "required": ["state_id","entity_id","entity_type","valid_from","observed_at","recorded_at","evidence_refs","properties"],
+  "properties": {
+    "state_id": {"type":"string","minLength":1},
+    "entity_id": {"type":"string","minLength":1},
+    "entity_type": {"type":"string","minLength":1},
+    "valid_from": {"type":"string","format":"date-time"},
+    "valid_to": {"type":["string","null"],"format":"date-time"},
+    "observed_at": {"type":"string","format":"date-time"},
+    "recorded_at": {"type":"string","format":"date-time"},
+    "properties": {"type":"object"},
+    "geometry": {"type":["object","null"]},
+    "confidence": {"type":["number","null"],"minimum":0,"maximum":1},
+    "evidence_refs": {"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}}
+  },
+  "additionalProperties": false
+}
