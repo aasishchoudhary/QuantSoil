@@ -7,11 +7,13 @@ import {
   OpenStreetMapImageryProvider,
   EllipsoidTerrainProvider,
   ScreenSpaceEventHandler,
+  createGooglePhotorealistic3DTileset,
   ScreenSpaceEventType,
   type Entity,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import "./style.css";
+import * as satellite from "satellite.js";
 
 const API = import.meta.env.VITE_ANALYST_API_BASE || "/v1/analyst";
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -51,8 +53,23 @@ app.innerHTML = `
       <section class="panel-section">
         <div class="section-head"><span>DATA LAYERS</span><b>02</b></div>
         <label class="toggle"><input id="layer-entities" type="checkbox" checked/><span></span><em>WORLD STATE ENTITIES</em></label>
-        <label class="toggle"><input id="layer-evidence" type="checkbox" checked/><span></span><em>EVIDENCE FEATURES</em></label>
+        <label class="toggle"><input id="layer-aircraft" type="checkbox"/><span></span><em>AIRCRAFT / OPENSKY</em></label>
+        <label class="toggle"><input id="layer-satellites" type="checkbox"/><span></span><em>SATELLITES / CELESTRAK</em></label>
+        <label class="toggle"><input id="layer-earthquakes" type="checkbox"/><span></span><em>EARTHQUAKES / USGS</em></label>
+        <label class="toggle"><input id="layer-weather" type="checkbox"/><span></span><em>WEATHER / OPEN-METEO</em></label>
         <label class="toggle"><input id="layer-labels" type="checkbox" checked/><span></span><em>MAP LABELS</em></label>
+      </section>
+      <section class="panel-section">
+        <div class="section-head"><span>COMMAND PROFILES</span><b>03</b></div>
+        <div class="module-grid">
+          <button class="module-btn" data-module="geolens">GEOLENS</button>
+          <button class="module-btn" data-module="world-monitor">WORLD MONITOR</button>
+          <button class="module-btn" data-module="iron-sight">IRON SIGHT</button>
+          <button class="module-btn" data-module="pythia">PYTHIA</button>
+          <button class="module-btn" data-module="wanderer">WANDERER</button>
+          <button class="module-btn" data-module="open-meteo">OPEN-METEO</button>
+        </div>
+        <div class="quick-actions"><button id="flir-toggle">FLIR</button><button id="google-3d">GOOGLE 3D</button></div>
       </section>
 
       <section class="panel-section">
@@ -188,6 +205,92 @@ viewer.camera.setView({ destination: Cartesian3.fromDegrees(78, 23, 9000000) });
 function setLayerVisibility(): void {
   const entities = dataSources.get("analyst");
   if (entities) entities.show = ($("#layer-entities") as HTMLInputElement).checked;
+}
+function removeLiveLayer(name: string): void {
+  const ds = liveSources.get(name);
+  if (ds) viewer.dataSources.remove(ds, true);
+  liveSources.delete(name);
+}
+
+async function addLiveGeoJson(name: string, url: string, labelField?: string): Promise<void> {
+  const data = await requestJson(url);
+  removeLiveLayer(name);
+  const ds = await GeoJsonDataSource.load(data, { clampToGround: false });
+  ds.name = name;
+  ds.entities.values.forEach((entity: Entity) => {
+    if (entity.point) {
+      entity.point.color = new ConstantProperty(Color.fromCssColorString("#ffbf69"));
+      entity.point.pixelSize = new ConstantProperty(7);
+      entity.point.outlineColor = new ConstantProperty(Color.fromCssColorString("#0b141b"));
+      entity.point.outlineWidth = new ConstantProperty(2);
+    }
+    if (labelField && entity.properties) {
+      const value = entity.properties[labelField]?.getValue?.();
+      if (value) entity.name = String(value);
+    }
+  });
+  liveSources.set(name, ds);
+  await viewer.dataSources.add(ds);
+}
+
+async function refreshAircraft(): Promise<void> {
+  await addLiveGeoJson("aircraft", "/v1/live/aircraft?bbox=" + encodeURIComponent(cameraBbox()), "callsign");
+}
+
+async function refreshEarthquakes(): Promise<void> {
+  await addLiveGeoJson("earthquakes", "/v1/live/earthquakes?feed=all_day", "title");
+}
+
+async function refreshSatellites(): Promise<void> {
+  const payload = await requestJson("/v1/live/satellites?group=active&limit=1000");
+  removeLiveLayer("satellites");
+  const now = new Date();
+  const features: any[] = [];
+  for (const row of payload.objects || []) {
+    try {
+      const name = String(row.OBJECT_NAME || row.object_name || "SATELLITE");
+      const satrec: any = row.TLE_LINE1 && row.TLE_LINE2
+        ? satellite.twoline2satrec(row.TLE_LINE1, row.TLE_LINE2)
+        : satellite.json2satrec(row);
+      const state = satellite.propagate(satrec, now);
+      if (!state?.position) continue;
+      const geo = satellite.eciToGeodetic(state.position, satellite.gstime(now));
+      const lon = satellite.degreesLong(geo.longitude);
+      const lat = satellite.degreesLat(geo.latitude);
+      const heightKm = geo.height;
+      if (!Number.isFinite(lon) || !Number.isFinite(lat) || !Number.isFinite(heightKm)) continue;
+      features.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [lon, lat, heightKm * 1000] },
+        properties: { entity_type: "satellite", source: "celestrak", name, norad: row.NORAD_CAT_ID || row.OBJECT_ID || null },
+      });
+    } catch { }
+  }
+  const ds = await GeoJsonDataSource.load({ type: "FeatureCollection", features }, { clampToGround: false });
+  ds.name = "satellites";
+  ds.entities.values.forEach((entity: Entity) => {
+    if (entity.point) {
+      entity.point.color = new ConstantProperty(Color.fromCssColorString("#c084fc"));
+      entity.point.pixelSize = new ConstantProperty(4);
+    }
+  });
+  liveSources.set("satellites", ds);
+  await viewer.dataSources.add(ds);
+}
+
+async function refreshLiveLayers(): Promise<void> {
+  const aircraftOn = ($("#layer-aircraft") as HTMLInputElement).checked;
+  const satellitesOn = ($("#layer-satellites") as HTMLInputElement).checked;
+  const earthquakesOn = ($("#layer-earthquakes") as HTMLInputElement).checked;
+  try {
+    if (aircraftOn) await refreshAircraft(); else removeLiveLayer("aircraft");
+    if (satellitesOn) await refreshSatellites(); else removeLiveLayer("satellites");
+    if (earthquakesOn) await refreshEarthquakes(); else removeLiveLayer("earthquakes");
+    if (aircraftOn || satellitesOn || earthquakesOn) setStatus("LIVE WORLD FEEDS", "ready");
+  } catch (error) {
+    setStatus("LIVE FEED DEGRADED", "warn");
+    console.warn(error);
+  }
 }
 
 function cameraBbox(): string {
@@ -387,6 +490,43 @@ analysisTimeInput.addEventListener("change", () => void refreshMap());
 $("#layer-entities").addEventListener("change", setLayerVisibility);
 $("#layer-evidence").addEventListener("change", setLayerVisibility);
 $("#layer-labels").addEventListener("change", setLayerVisibility);
+$("#layer-aircraft").addEventListener("change", () => void refreshLiveLayers());
+$("#layer-satellites").addEventListener("change", () => void refreshLiveLayers());
+$("#layer-earthquakes").addEventListener("change", () => void refreshLiveLayers());
+$("#layer-weather").addEventListener("change", async () => {
+  if (!(($("#layer-weather") as HTMLInputElement).checked)) return;
+  const data = await requestJson("/v1/live/weather?lat=23.3441&lon=85.3096");
+  $("#inspector-title").textContent = "Open-Meteo weather";
+  $("#properties").textContent = JSON.stringify(data.data?.current || data.data || {}, null, 2);
+  setStatus("OPEN-METEO READY", "ready");
+});
+$("#flir-toggle").addEventListener("click", () => document.querySelector(".map-stage")?.classList.toggle("flir-mode"));
+$("#google-3d").addEventListener("click", async () => {
+  const key = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "").trim();
+  if (!key) { setStatus("GOOGLE 3D KEY NOT CONFIGURED", "warn"); return; }
+  try {
+    (viewer as any).scene.globe.show = false;
+    const tileset = await createGooglePhotorealistic3DTileset({ key, onlyUsingWithGoogleGeocoder: true });
+    viewer.scene.primitives.add(tileset);
+    setStatus("GOOGLE PHOTOREALISTIC 3D", "ready");
+  } catch (error) {
+    setStatus("GOOGLE 3D FAILED", "error");
+    console.warn(error);
+  }
+});
+document.querySelectorAll<HTMLButtonElement>("[data-module]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const labels: Record<string, string> = {
+      geolens: "GEOLENS • SPATIAL CATALOG",
+      "world-monitor": "WORLD MONITOR • GLOBAL CONTEXT",
+      "iron-sight": "IRON SIGHT • CONFLICT MONITOR",
+      pythia: "PYTHIA • FORECAST WORKSPACE",
+      wanderer: "WANDERER • TRAIL WORKSPACE",
+      "open-meteo": "OPEN-METEO • WEATHER CONTEXT",
+    };
+    $("#mission-name").textContent = labels[button.dataset.module || ""] || "GLOBAL SITUATIONAL AWARENESS";
+  });
+});
 
 $("#global-view").addEventListener("click", () => {
   viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(78, 23, 9000000), duration: 0.8 });
@@ -411,5 +551,8 @@ window.addEventListener("keydown", (event) => {
 
 analysisTimeInput.value = new Date().toISOString().slice(0, 16);
 void checkHealth().then((ready) => {
-  if (ready) void refreshMap();
+  if (ready) {
+    void refreshMap();
+    void refreshLiveLayers();
+  }
 });
