@@ -46,7 +46,7 @@ _UPDATE = """
 UPDATE runtime_jobs
 SET scheduled_at=%s, attempts=%s, status=%s, lease_until=%s,
     last_error_type=%s, updated_at=%s
-WHERE job_id=%s AND status='running'
+WHERE job_id=%s AND status='running' AND lease_until=%s
 """
 
 _GET = """
@@ -91,7 +91,7 @@ class PostgresJobQueue(JobQueue):
         try:
             with self.connection.cursor() as c:
                 c.execute(_UPDATE,(job.scheduled_at,job.attempts,job.status.value,
-                                   job.lease_until,job.last_error_type,now,job.job_id))
+                                   job.lease_until,job.last_error_type,now,job.job_id,job.lease_until))
                 if getattr(c,"rowcount",1) != 1:
                     raise RuntimeError("runtime job lease is no longer active")
             self.connection.commit()
