@@ -236,14 +236,13 @@ async function checkHealth(): Promise<boolean> {
 
 function styleFeatures(data: any): void {
   const sourceNames = new Set<string>();
-  let evidenceRefs = 0;
+  const evidenceIds = new Set<string>();
   let confidenceSum = 0;
   let confidenceN = 0;
   for (const feature of data.features || []) {
     const props = feature.properties || {};
-    const refs = Array.isArray(props.evidence_refs) ? props.evidence_refs : [];
-    evidenceRefs += refs.length;
-    for (const ref of refs) if (String(ref).includes(":")) sourceNames.add(String(ref).split(":", 1)[0]);
+    if (props.source) sourceNames.add(String(props.source));
+    if (props.observation_id) evidenceIds.add(String(props.observation_id));
     if (typeof props.confidence === "number") {
       confidenceSum += props.confidence;
       confidenceN += 1;
@@ -251,7 +250,7 @@ function styleFeatures(data: any): void {
   }
   setMetric(featureCount, data.count ?? data.features?.length ?? 0);
   setMetric(sourceCount, sourceNames.size || "—");
-  setMetric(evidenceCount, evidenceRefs || "—");
+  setMetric(evidenceCount, evidenceIds.size || "—");
   setMetric(confidenceEl, confidenceN ? confidenceLabel(confidenceSum / confidenceN) : "—");
 }
 
