@@ -1,27 +1,17 @@
 """PostGIS repository adapter for evidence-aware map projections."""
 from __future__ import annotations
-from datetime import datetime
-from typing import Any, Protocol
 from services.geospatial.api import MapFeature
-
-class Cursor(Protocol):
-    def execute(self, query: str, params: tuple[Any, ...]) -> Any: ...
-    def fetchall(self) -> list[tuple[Any, ...]]: ...
-    def __enter__(self): ...
-    def __exit__(self,*args): ...
-
-class Connection(Protocol):
-    def cursor(self): ...
-
-class MapRepositoryError(RuntimeError): pass
 
 _QUERY = """SELECT feature_id, feature_type, source, source_record_id,
     observation_id, geometry, properties, confidence, observed_at,
     raw_payload_hash, parser_version, license_class, valid_from, valid_to
     FROM map_features_in_bbox(%s,%s,%s,%s,%s,%s)"""
+_TILE = "SELECT map_features_mvt(%s,%s,%s,%s)"
+
+class MapRepositoryError(RuntimeError): pass
 
 class PostgresMapRepository:
-    def __init__(self, connection: Connection): self._connection=connection
+    def __init__(self, connection): self._connection=connection
 
     def query_bbox(self,min_lon,min_lat,max_lon,max_lat,at=None,limit=500):
         try:
@@ -31,6 +21,18 @@ class PostgresMapRepository:
         except Exception as exc:
             raise MapRepositoryError("failed to query spatial projection") from exc
         return tuple(self._row(row) for row in rows)
+
+    def tile(self,z:int,x:int,y:int,at=None)->bytes:
+        if not (0 <= z <= 24): raise ValueError("zoom outside supported range")
+        max_tile=2**z
+        if not (0 <= x < max_tile and 0 <= y < max_tile): raise ValueError("tile coordinate outside zoom bounds")
+        try:
+            with self._connection.cursor() as cursor:
+                cursor.execute(_TILE,(z,x,y,at))
+                row=cursor.fetchone()
+        except Exception as exc:
+            raise MapRepositoryError("failed to query vector tile") from exc
+        return bytes(row[0] or b"") if row else b""
 
     @staticmethod
     def _row(row):
