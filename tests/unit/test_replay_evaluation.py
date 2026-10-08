@@ -3,6 +3,9 @@ from datetime import datetime, timezone
 from packages.contracts.evidence import payload_sha256
 from packages.evaluation.replay import replay
 
+OBSERVED_AT = datetime(2026, 1, 1, 0, 0, tzinfo=timezone.utc)
+INGESTED_AT = datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc)
+
 
 def item(value=1, evidence_id="00000000-0000-0000-0000-000000000001", source_record_id="r1"):
     payload = {"value": value}
@@ -10,8 +13,8 @@ def item(value=1, evidence_id="00000000-0000-0000-0000-000000000001", source_rec
         "evidence_id": evidence_id,
         "source": "synthetic",
         "source_record_id": source_record_id,
-        "observed_at": datetime.now(timezone.utc),
-        "ingested_at": datetime.now(timezone.utc),
+        "observed_at": OBSERVED_AT,
+        "ingested_at": INGESTED_AT,
         "payload": payload,
         "raw_payload_hash": payload_sha256(payload),
         "parser_version": "p1",
@@ -35,7 +38,10 @@ def test_replay_rejects_tampering():
 
 
 def test_replay_accepts_distinct_content_identity():
-    result = replay([item(), item(value=2, evidence_id="00000000-0000-0000-0000-000000000002", source_record_id="r2")])
+    result = replay([
+        item(),
+        item(value=2, evidence_id="00000000-0000-0000-0000-000000000002", source_record_id="r2"),
+    ])
     assert result.accepted == 2
     assert result.unique == 2
     assert result.rejected == 0
