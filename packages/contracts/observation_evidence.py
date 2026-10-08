@@ -48,7 +48,7 @@ def observation_to_evidence(
             source=observation.source,
             source_record_id=observation.source_record_id,
             observed_at=observation.observed_at,
-            acquired_at=None,
+            acquired_at=observation.acquired_at,
             ingested_at=observation.ingested_at,
             payload=observation.payload,
             raw_payload_hash=observation.provenance.raw_payload_hash,
