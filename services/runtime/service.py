@@ -16,6 +16,7 @@ from packages.repositories.world_state_postgres import PostgresWorldStateReposit
 from packages.repositories.map_postgres import PostgresMapRepository
 from services.analyst.query import AnalystService
 from services.analyst.api import create_app as create_analyst_app
+from services.geospatial.api import create_app as create_map_app
 from packages.repositories.source_health_postgres import PostgresIngestionAuditRepository, PostgresSourceHealthRepository
 from services.connectors.runner import ConnectorRunner
 from services.connectors.retry import RetryPolicy
@@ -116,8 +117,10 @@ def create_app() -> FastAPI:
 
         state["connection"] = connection
         state["connector_count"] = len(connectors)
-        analyst_service = AnalystService(PostgresWorldStateRepository(connection), PostgresMapRepository(connection))
+        map_repository = PostgresMapRepository(connection)
+        analyst_service = AnalystService(PostgresWorldStateRepository(connection), map_repository)
         app.mount("/v1/analyst", create_analyst_app(analyst_service))
+        app.mount("/v1/map", create_map_app(map_repository))
         state["started"] = True
 
         def loop():
