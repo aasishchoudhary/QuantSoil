@@ -75,7 +75,7 @@ class PostgresObservationProjectionRepository:
                              feature_type, source, source_record_id, observation_id,
                              geometry, properties, confidence, observed_at,
                              raw_payload_hash, parser_version, license_class
-                           ) VALUES (%s,%s,%s,%s,ST_SetSRID(ST_GeomFromGeoJSON(%s),4326),
+                           ) VALUES (%s,%s,%s,%s,ST_SetSRID(ST_Force2D(ST_GeomFromGeoJSON(%s)),4326),
                                      %s,NULL,%s,%s,%s,%s)
                            ON CONFLICT (source,source_record_id,raw_payload_hash) DO NOTHING""",
                         (
