@@ -13,7 +13,7 @@ The CI pipeline must pass:
 - unit and integration tests included by CI
 - Cesium analyst UI build
 
-production_acceptance.py additionally verifies required architecture/security/recovery artifacts, migration-chain continuity, Restricted Pod Security controls, default-deny network policy, shell syntax, and a basic embedded-secret scan.
+production_acceptance.py additionally verifies required architecture/security/recovery artifacts, migration-chain continuity, Restricted Pod Security controls, default-deny network policy, disruption-budget and cluster-acceptance artifacts, shell syntax, and a basic embedded-secret scan.
 
 ## Target-infrastructure gates
 
@@ -29,7 +29,7 @@ These cannot honestly be marked PASS from source control alone:
    - apply manifests to the target cluster
    - verify Pod Security Admission enforcement
    - verify NetworkPolicy behavior from actual namespaces/selectors
-   - verify rolling update and readiness/liveness behavior
+   - verify rolling update, readiness/liveness behavior, and PodDisruptionBudgets\n   - run `scripts/production_cluster_acceptance.sh` and retain its output as deployment evidence
 
 3. Database
    - run the complete migration chain on the production-compatible PostGIS version
@@ -38,7 +38,7 @@ These cannot honestly be marked PASS from source control alone:
    - if PITR is required, verify WAL archiving and a point-in-time recovery target
 
 4. Evidence storage
-   - private bucket with public access blocked
+   - private bucket with public access blocked and TLS-only access enforced
    - versioning/Object Lock policy where required
    - workload identity/IRSA or equivalent short-lived credentials
    - verify payload hash retrieval after restore
