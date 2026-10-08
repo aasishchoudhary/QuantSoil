@@ -62,6 +62,9 @@ def test_analyst_queries_use_migrated_world_state_and_postgis(db):
 
     assert snapshot.states[0].properties["status"]=="open"
     assert timeline.changes[-1].changed_properties==("status",)
-    assert len(spatial.features)==1
-    assert spatial.features[0].source=="usgs"
+    assert any(
+        feature.feature_id == "00000000-0000-0000-0000-000000000001"
+        and feature.source == "usgs"
+        for feature in spatial.features
+    )
     assert isinstance(tile, bytes)

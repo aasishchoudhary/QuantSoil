@@ -7,7 +7,7 @@ COPY services ./services
 COPY schemas ./schemas
 COPY migrations ./migrations
 COPY db ./db
-RUN python -m pip install --no-cache-dir --upgrade pip && python -m pip install --no-cache-dir .
+RUN python -m pip install --no-cache-dir --upgrade pip && python -m pip install --no-cache-dir ".[production]"
 USER 10001
 EXPOSE 8080
 CMD ["python", "-m", "uvicorn", "services.runtime.service:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -1,15 +1,19 @@
 """PostgreSQL runtime-job queue adapter using transactional row leasing."""
 from __future__ import annotations
+
 from datetime import datetime, timedelta
 from typing import Any, Protocol
+
 from services.runtime.contracts import JobQueue, RuntimeJob, JobStatus
+from packages.repositories.db import connection_scope
 
 
 class Cursor(Protocol):
     def execute(self, query: str, params: tuple[Any, ...]): ...
     def fetchone(self): ...
     def __enter__(self): ...
-    def __exit__(self,*args): ...
+    def __exit__(self, *args): ...
+
 
 class Connection(Protocol):
     def cursor(self): ...
@@ -56,61 +60,72 @@ FROM runtime_jobs WHERE job_id=%s
 
 
 class PostgresJobQueue(JobQueue):
-    def __init__(self, connection: Connection):
-        self.connection=connection
+    def __init__(self, connection: Connection) -> None:
+        self.connection = connection
 
     def enqueue(self, job: RuntimeJob) -> RuntimeJob:
         try:
-            with self.connection.cursor() as c:
-                c.execute(_INSERT,(job.job_id,job.source,job.idempotency_key,job.scheduled_at,
-                                   job.attempts,job.status.value,job.lease_until,job.last_error_type))
-            self.connection.commit()
-            return self.get(job.job_id) or job
+            with connection_scope(self.connection) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(_INSERT, (
+                        job.job_id, job.source, job.idempotency_key, job.scheduled_at,
+                        job.attempts, job.status.value, job.lease_until, job.last_error_type,
+                    ))
+                    cursor.execute(_GET, (job.job_id,))
+                    row = cursor.fetchone()
+                connection.commit()
         except Exception as exc:
-            try: self.connection.rollback()
-            except Exception: pass
             raise RuntimeError("failed to enqueue runtime job") from exc
+        return self._row(row) if row is not None else job
 
     def claim(self, *, now: datetime, lease: timedelta) -> RuntimeJob | None:
         if now.tzinfo is None or lease <= timedelta(0):
             raise ValueError("invalid claim arguments")
-        until=now+lease
+        until = now + lease
         try:
-            with self.connection.cursor() as c:
-                c.execute(_CLAIM,(now,now,until,now))
-                row=c.fetchone()
-            self.connection.commit()
+            with connection_scope(self.connection) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(_CLAIM, (now, now, until, now))
+                    row = cursor.fetchone()
+                connection.commit()
         except Exception as exc:
-            try: self.connection.rollback()
-            except Exception: pass
             raise RuntimeError("failed to claim runtime job") from exc
         return None if row is None else self._row(row)
 
     def complete(self, job: RuntimeJob) -> None:
-        now=datetime.now(job.scheduled_at.tzinfo)
+        now = datetime.now(job.scheduled_at.tzinfo)
         try:
-            with self.connection.cursor() as c:
-                c.execute(_UPDATE,(job.scheduled_at,job.attempts,job.status.value,
-                                   job.lease_until,job.last_error_type,now,job.job_id,job.lease_token))
-                if getattr(c,"rowcount",1) != 1:
-                    raise RuntimeError("runtime job lease is no longer active")
-            self.connection.commit()
+            with connection_scope(self.connection) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        _UPDATE,
+                        (
+                            job.scheduled_at, job.attempts, job.status.value,
+                            job.lease_until, job.last_error_type, now,
+                            job.job_id, job.lease_token,
+                        ),
+                    )
+                    if getattr(cursor, "rowcount", 1) != 1:
+                        raise RuntimeError("runtime job lease is no longer active")
+                connection.commit()
         except Exception as exc:
-            try: self.connection.rollback()
-            except Exception: pass
-            if isinstance(exc,RuntimeError): raise
+            if isinstance(exc, RuntimeError):
+                raise
             raise RuntimeError("failed to complete runtime job") from exc
 
     def get(self, job_id: str) -> RuntimeJob | None:
         try:
-            with self.connection.cursor() as c:
-                c.execute(_GET,(job_id,))
-                row=c.fetchone()
+            with connection_scope(self.connection) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(_GET, (job_id,))
+                    row = cursor.fetchone()
         except Exception as exc:
             raise RuntimeError("failed to read runtime job") from exc
         return None if row is None else self._row(row)
 
     @staticmethod
-    def _row(row: tuple[Any,...]) -> RuntimeJob:
-        return RuntimeJob(str(row[0]),str(row[1]),str(row[2]),row[3],int(row[4]),
-                          JobStatus(str(row[5])),row[6],row[7],row[6])
+    def _row(row: tuple[Any, ...]) -> RuntimeJob:
+        return RuntimeJob(
+            str(row[0]), str(row[1]), str(row[2]), row[3], int(row[4]),
+            JobStatus(str(row[5])), row[6], row[7], row[6],
+        )

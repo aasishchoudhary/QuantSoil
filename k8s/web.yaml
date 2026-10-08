@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: gods-eye-web
+  namespace: gods-eye
 spec:
   replicas: 2
   selector:
@@ -17,9 +18,13 @@ spec:
       labels:
         app: gods-eye-web
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: web
-          image: ghcr.io/aasishchoudhary/quantsoil-web:0.1.0
+          image: ghcr.io/aasishchoudhary/quantsoil-web:v0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -67,6 +72,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: gods-eye-web
+  namespace: gods-eye
 spec:
   selector:
     app: gods-eye-web

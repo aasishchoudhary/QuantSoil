@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Protocol
 
 from packages.evaluation.data_quality import SourceHealth
+from packages.repositories.db import connection_scope
 
 
 class Cursor(Protocol):
@@ -45,25 +46,23 @@ class PostgresSourceHealthRepository:
 
     def put(self, health: SourceHealth) -> SourceHealth:
         try:
-            with self._connection.cursor() as cursor:
-                cursor.execute(_UPSERT, (
-                    health.source, health.observed_at, health.recorded_at,
-                    health.consecutive_failures,
-                ))
-            self._connection.commit()
+            with connection_scope(self._connection) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(_UPSERT, (
+                        health.source, health.observed_at, health.recorded_at,
+                        health.consecutive_failures,
+                    ))
+                connection.commit()
         except Exception as exc:
-            try:
-                self._connection.rollback()
-            except Exception:
-                pass
             raise SourceHealthRepositoryError("failed to persist source health") from exc
         return health
 
     def get(self, source: str) -> SourceHealth | None:
         try:
-            with self._connection.cursor() as cursor:
-                cursor.execute(_GET, (source,))
-                row = cursor.fetchone()
+            with connection_scope(self._connection) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(_GET, (source,))
+                    row = cursor.fetchone()
         except Exception as exc:
             raise SourceHealthRepositoryError("failed to read source health") from exc
         if row is None:
@@ -76,7 +75,9 @@ def _datetime(value: Any) -> datetime:
         raise SourceHealthRepositoryError("database returned invalid timestamp")
     return value
 
+
 from packages.connectors.contracts import IngestionAudit, RejectedRecord
+
 
 class PostgresIngestionAuditRepository:
     def __init__(self, connection: Connection) -> None:
@@ -97,14 +98,16 @@ class PostgresIngestionAuditRepository:
           error_type=EXCLUDED.error_type
         """
         try:
-            with self._connection.cursor() as cursor:
-                cursor.execute(query, (audit.run_id,audit.source,audit.started_at,audit.finished_at,
-                    audit.records_seen,audit.records_accepted,audit.records_rejected,audit.attempts,audit.error_type))
-            self._connection.commit()
-            return audit
+            with connection_scope(self._connection) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(query, (
+                        audit.run_id, audit.source, audit.started_at, audit.finished_at,
+                        audit.records_seen, audit.records_accepted, audit.records_rejected,
+                        audit.attempts, audit.error_type,
+                    ))
+                connection.commit()
+                return audit
         except Exception as exc:
-            try: self._connection.rollback()
-            except Exception: pass
             raise SourceHealthRepositoryError("failed to persist ingestion audit") from exc
 
     def put_rejection(self, rejection: RejectedRecord) -> RejectedRecord:
@@ -117,14 +120,16 @@ class PostgresIngestionAuditRepository:
         """
         import json
         try:
-            with self._connection.cursor() as cursor:
-                cursor.execute(query, (rejection.rejection_id, rejection.run_id, rejection.source,
-                    rejection.source_record_id, rejection.raw_payload_hash, rejection.status,
-                    json.dumps(list(rejection.reasons)), rejection.observed_at,
-                    rejection.rejected_at, json.dumps(rejection.payload)))
-            self._connection.commit()
-            return rejection
+            with connection_scope(self._connection) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(query, (
+                        rejection.rejection_id, rejection.run_id, rejection.source,
+                        rejection.source_record_id, rejection.raw_payload_hash,
+                        rejection.status, json.dumps(list(rejection.reasons)),
+                        rejection.observed_at, rejection.rejected_at,
+                        json.dumps(rejection.payload),
+                    ))
+                connection.commit()
+                return rejection
         except Exception as exc:
-            try: self._connection.rollback()
-            except Exception: pass
             raise SourceHealthRepositoryError("failed to persist rejected record") from exc

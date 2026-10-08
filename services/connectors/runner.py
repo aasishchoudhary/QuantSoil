@@ -26,6 +26,9 @@ class EvidenceMetadataStore(Protocol):
     def put(self, record: EvidenceRecord, *, payload_uri: str | None = None,
             payload_size_bytes: int | None = None) -> EvidenceRecord: ...
 
+class ObservationProjectionStore(Protocol):
+    def project(self, *, observation, evidence) -> bool: ...
+
 class ConnectorRunner:
     def __init__(
         self, registry, ingestor: ObservationIngestor, *,
@@ -35,6 +38,7 @@ class ConnectorRunner:
         audit_store: ConnectorAuditStore | None = None,
         evidence_payload_store: EvidencePayloadStore | None = None,
         evidence_metadata_store: EvidenceMetadataStore | None = None,
+        projection_store: ObservationProjectionStore | None = None,
     ) -> None:
         if evidence_metadata_store is not None and evidence_payload_store is None:
             raise ValueError("evidence metadata persistence requires a payload store")
@@ -46,6 +50,7 @@ class ConnectorRunner:
         self.audit_store = audit_store
         self.evidence_payload_store = evidence_payload_store
         self.evidence_metadata_store = evidence_metadata_store
+        self.projection_store = projection_store
         self.last_audit: IngestionAudit | None = None
         self.last_rejections: list[RejectedRecord] = []
 
@@ -83,6 +88,10 @@ class ConnectorRunner:
                     )
                     if result.quality.status.value == "accepted":
                         self._persist_evidence(result.evidence)
+                        if self.projection_store is not None and not result.duplicate:
+                            self.projection_store.project(
+                                observation=result.observation, evidence=result.evidence
+                            )
                         if result.duplicate and self.evidence_payload_store is None:
                             rejected += 1
                         else:
