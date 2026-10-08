@@ -108,8 +108,13 @@ class InMemoryJobQueue:
 
     def complete(self, job: RuntimeJob) -> None:
         current=self._jobs.get(job.job_id)
-        if current is None or current.status is not JobStatus.RUNNING:
-            raise ValueError("job is not actively leased")
+        if (
+            current is None
+            or current.status is not JobStatus.RUNNING
+            or current.lease_until != job.lease_until
+            or job.lease_until is None
+        ):
+            raise ValueError("job lease is no longer active")
         self._jobs[job.job_id]=job
 
     def get(self, job_id: str) -> RuntimeJob | None:
