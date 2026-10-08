@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gods-eye-world-intelligence.dev/schemas/fusion-result.schema.json",
+  "title": "Fusion Result",
+  "type": "object",
+  "required": ["entity_id","property_name","status","candidate_assertion_ids","scores"],
+  "properties": {
+    "entity_id": {"type":"string","minLength":1},
+    "property_name": {"type":"string","minLength":1},
+    "status": {"enum":["accepted","contradictory","empty"]},
+    "selected_assertion_id": {"type":["string","null"]},
+    "candidate_assertion_ids": {"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}},
+    "scores": {"type":"object","additionalProperties":{"type":"number","minimum":0,"maximum":1}}
+  },
+  "additionalProperties": false
+}
