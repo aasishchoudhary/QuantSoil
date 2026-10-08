@@ -4,8 +4,6 @@ Authentication is delegated to the AWS SDK credential chain/IAM; no credentials
 are accepted in source code. Objects are keyed by the evidence content hash.
 """
 from __future__ import annotations
-import json
-from typing import Any
 from packages.contracts.evidence import EvidenceRecord, canonical_json_bytes
 
 class S3EvidencePayloadStore:
