@@ -1,6 +1,6 @@
 """Audit contracts for connector runs and rejected source records."""
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 import hashlib, json
 from typing import Any, Mapping
@@ -40,7 +40,7 @@ class RejectedRecord:
     reasons: tuple[str,...]
     observed_at: datetime
     rejected_at: datetime
-    payload: Mapping[str,Any]
+    payload: Mapping[str,Any] = field(default_factory=dict)
     def __post_init__(self):
         if self.rejected_at.tzinfo is None or self.observed_at.tzinfo is None: raise ValueError("timestamps must be timezone-aware")
         if not self.reasons: raise ValueError("rejection reasons are required")
