@@ -1,6 +1,11 @@
 import {
   Viewer,
   Cartesian3,
+  Cartesian2,
+  JulianDate,
+  SampledPositionProperty,
+  BillboardGraphics,
+  PropertyBag,
   Color,
   ConstantProperty,
   GeoJsonDataSource,
@@ -160,6 +165,11 @@ const evidenceCount = $("#evidence-count") as HTMLElement;
 const confidenceEl = $("#confidence") as HTMLElement;
 const dataSources = new Map<string, any>();
 const liveSources = new Map<string, any>();
+const aircraftEntities = new Map<string, Entity>();
+const AIRCRAFT_ICON = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M32 3 L39 27 L57 35 L57 41 L39 37 L36 60 L28 60 L25 37 L7 41 L7 35 L25 27 Z" fill="#e8f7ff" stroke="#07131d" stroke-width="3" stroke-linejoin="round"/></svg>`);
+const JET_ICON = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M32 2 L37 22 L58 32 L58 38 L38 35 L35 61 L29 61 L26 35 L6 38 L6 32 L27 22 Z" fill="#ffd166" stroke="#07131d" stroke-width="3" stroke-linejoin="round"/><path d="M26 27 L12 17 L10 22 L25 34 Z M38 27 L52 17 L54 22 L39 34 Z" fill="#ffd166" stroke="#07131d" stroke-width="2"/></svg>`);
+const ROTOR_ICON = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="34" r="12" fill="#75d6ff" stroke="#07131d" stroke-width="3"/><path d="M8 18 Q32 10 56 18 M8 50 Q32 58 56 50 M32 5 L32 59" fill="none" stroke="#75d6ff" stroke-width="4"/></svg>`);
+const AIRCRAFT_REFRESH_MS = 10000;
 let requestSeq = 0;
 let lastFeatures: any[] = [];
 let runtimeReady = false;
@@ -221,6 +231,112 @@ function setLayerVisibility(): void {
     });
   }
 }
+function removeAircraftEntities(): void {
+  for (const entity of aircraftEntities.values()) viewer.entities.remove(entity);
+  aircraftEntities.clear();
+}
+
+function aircraftIcon(category: number | null): string {
+  if (category === 8) return ROTOR_ICON;
+  if (category !== null && category >= 4 && category <= 7) return JET_ICON;
+  return AIRCRAFT_ICON;
+}
+
+function predictPosition(lon: number, lat: number, altitude: number, speedMps: number | null, headingDeg: number | null, seconds: number): Cartesian3 {
+  if (!speedMps || !headingDeg || speedMps <= 0) return Cartesian3.fromDegrees(lon, lat, altitude);
+  const distance = speedMps * seconds;
+  const heading = headingDeg * Math.PI / 180;
+  const radius = 6371000;
+  const dLat = (distance * Math.cos(heading)) / radius;
+  const dLon = (distance * Math.sin(heading)) / (radius * Math.max(Math.cos(lat * Math.PI / 180), 0.05));
+  return Cartesian3.fromDegrees(lon + dLon * 180 / Math.PI, lat + dLat * 180 / Math.PI, altitude);
+}
+
+async function refreshAircraft(): Promise<void> {
+  const data = await requestJson("/v1/live/aircraft?bbox=" + encodeURIComponent(cameraBbox()) + "&provider=opensky");
+  const observed = new Date(data.observed_at || Date.now());
+  const sampleTime = JulianDate.fromDate(observed);
+  const seen = new Set<string>();
+
+  for (const feature of data.features || []) {
+    const props = feature.properties || {};
+    const icao = String(props.icao24 || "");
+    const coords = feature.geometry?.coordinates || [];
+    if (!icao || coords.length < 2) continue;
+
+    const lon = Number(coords[0]);
+    const lat = Number(coords[1]);
+    const altitude = Number(coords[2] || 0);
+    if (![lon, lat, altitude].every(Number.isFinite)) continue;
+
+    seen.add(icao);
+    const position = Cartesian3.fromDegrees(lon, lat, altitude);
+    const category = props.category == null ? null : Number(props.category);
+    const heading = props.heading_deg == null ? null : Number(props.heading_deg);
+    const speed = props.velocity_mps == null ? null : Number(props.velocity_mps);
+    const existing = aircraftEntities.get(icao);
+
+    if (existing) {
+      const positionProperty = existing.position as SampledPositionProperty;
+      positionProperty.addSample(sampleTime, position);
+      positionProperty.addSample(
+        JulianDate.addSeconds(sampleTime, AIRCRAFT_REFRESH_MS / 1000, new JulianDate()),
+        predictPosition(lon, lat, altitude, speed, heading, AIRCRAFT_REFRESH_MS / 1000)
+      );
+      if (existing.billboard) {
+        existing.billboard.image = new ConstantProperty(aircraftIcon(category));
+        existing.billboard.rotation = new ConstantProperty((heading || 0) * Math.PI / 180);
+      }
+      existing.name = props.callsign?.trim() || icao;
+      continue;
+    }
+
+    const positionProperty = new SampledPositionProperty();
+    positionProperty.addSample(sampleTime, position);
+    positionProperty.addSample(
+      JulianDate.addSeconds(sampleTime, AIRCRAFT_REFRESH_MS / 1000, new JulianDate()),
+      predictPosition(lon, lat, altitude, speed, heading, AIRCRAFT_REFRESH_MS / 1000)
+    );
+
+    const entity = viewer.entities.add({
+      id: `aircraft-${icao}`,
+      name: props.callsign?.trim() || icao,
+      position: positionProperty,
+      billboard: new BillboardGraphics({
+        image: aircraftIcon(category),
+        width: 30,
+        height: 30,
+        rotation: (heading || 0) * Math.PI / 180,
+        alignedAxis: Cartesian3.ZERO,
+        pixelOffset: new Cartesian2(0, 0),
+      }),
+      properties: new PropertyBag({
+        entity_type: "aircraft",
+        icao24: icao,
+        callsign: props.callsign || "",
+        category: category,
+        source: props.source || "opensky",
+        altitude_m: altitude,
+        velocity_mps: speed,
+        heading_deg: heading,
+      }),
+    });
+    aircraftEntities.set(icao, entity);
+  }
+
+  for (const [icao, entity] of aircraftEntities) {
+    if (!seen.has(icao)) {
+      viewer.entities.remove(entity);
+      aircraftEntities.delete(icao);
+    }
+  }
+
+  viewer.clock.shouldAnimate = true;
+  viewer.clock.currentTime = JulianDate.fromDate(new Date());
+  setMetric(featureCount, data.count || 0);
+  setStatus(`AIRCRAFT LIVE • ${data.count || 0}`, "ready");
+}
+
 function removeLiveLayer(name: string): void {
   const ds = liveSources.get(name);
   if (ds) viewer.dataSources.remove(ds, true);
@@ -325,7 +441,7 @@ async function refreshLiveLayers(): Promise<void> {
   const firesOn = ($("#layer-fires") as HTMLInputElement).checked;
   const shipsOn = ($("#layer-ships") as HTMLInputElement).checked;
   try {
-    if (aircraftOn) await refreshAircraft(); else removeLiveLayer("aircraft");
+    if (!aircraftOn) removeAircraftEntities(); else await refreshAircraft();
     if (satellitesOn) await refreshSatellites(); else removeLiveLayer("satellites");
     if (earthquakesOn) await refreshEarthquakes(); else removeLiveLayer("earthquakes");
     if (firesOn) await refreshFires(); else removeLiveLayer("fires");
@@ -538,6 +654,9 @@ $("#layer-satellites").addEventListener("change", () => void refreshLiveLayers()
 $("#layer-earthquakes").addEventListener("change", () => void refreshLiveLayers());
 $("#layer-fires").addEventListener("change", () => void refreshLiveLayers());
 $("#layer-ships").addEventListener("change", () => void refreshLiveLayers());
+window.setInterval(() => {
+  if (runtimeReady && ($("#layer-aircraft") as HTMLInputElement).checked) void refreshAircraft();
+}, AIRCRAFT_REFRESH_MS);
 $("#layer-weather").addEventListener("change", async () => {
   if (!(($("#layer-weather") as HTMLInputElement).checked)) return;
   const data = await requestJson("/v1/live/weather?lat=23.3441&lon=85.3096");
