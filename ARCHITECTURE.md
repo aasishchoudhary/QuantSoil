@@ -1,6 +1,8 @@
 # Architecture
 
-Evidence-first world intelligence: sources → connectors → ingestion → normalization → evidence ledger → entity resolution → ontology → temporal world state → fusion → analyst tools → visualization/prediction.
+Evidence-first world intelligence: sources → governed connectors → bounded retry/health → ingestion/quality → evidence ledger → entity resolution → ontology → temporal world state → contradiction/fusion → audit/replay → analyst tools → visualization/prediction.
+
+The first live public connector is the USGS earthquake GeoJSON feed. It is intentionally no-key, fixture-testable, provenance-preserving, and isolated behind the connector contract.
 
 ## Invariants
 - Raw evidence is immutable and content-addressed.

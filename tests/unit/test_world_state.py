@@ -11,6 +11,7 @@ def state(state_id, entity_id, valid_from, **overrides):
         "entity_id": entity_id,
         "entity_type": "aircraft",
         "valid_from": valid_from,
+        "valid_to": None,
         "observed_at": valid_from,
         "recorded_at": valid_from,
         "properties": {"status": "active"},

@@ -42,7 +42,7 @@ class EntityState:
             raise WorldStateError("recorded_at must not precede observed_at")
         if self.confidence is not None and not 0 <= self.confidence <= 1:
             raise WorldStateError("confidence must be between 0 and 1")
-        if any(not ref for ref in self.evidence_refs):
+        if not self.evidence_refs or any(not ref for ref in self.evidence_refs):
             raise WorldStateError("evidence references must be non-empty")
         if len(set(self.evidence_refs)) != len(self.evidence_refs):
             raise WorldStateError("evidence references must be unique")

@@ -22,6 +22,7 @@ class Observation:
     ingested_at: datetime
     payload: dict[str, Any]
     provenance: Provenance
+    acquired_at: datetime | None = None
 
     @staticmethod
     def payload_hash(payload: dict[str, Any]) -> str:

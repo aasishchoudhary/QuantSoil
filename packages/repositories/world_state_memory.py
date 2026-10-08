@@ -23,3 +23,7 @@ class WorldStateReplayRepository:
 
     def history(self, entity_id: str) -> tuple[EntityState, ...]:
         return self._repo.history(entity_id)
+
+    def as_of(self, entity_id: str, at: datetime) -> EntityState | None:
+        return self._repo.as_of(entity_id, at)
+
