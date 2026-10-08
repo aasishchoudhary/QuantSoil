@@ -5,7 +5,7 @@ This manifest is a deployment template. Secrets and cloud permissions stay outsi
 ## Required external configuration
 
 Create the `world-intelligence-runtime` Secret out of band with:
-- `DATABASE_URL`: PostgreSQL connection string.
+- `DATABASE_URL`: PostgreSQL 16+ connection string to a PostGIS-enabled database (PostGIS 3.x is required by the geospatial migration).
 - `EVIDENCE_BUCKET`: private S3 bucket name.
 
 Do not commit the Secret or credentials. In AWS/EKS, grant the service account only the S3 permissions required for the evidence prefix and use workload identity/IRSA rather than static AWS keys.
