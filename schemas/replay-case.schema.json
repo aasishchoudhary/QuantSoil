@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gods-eye-world-intelligence.dev/schemas/replay-case.schema.json",
+  "title": "Replay Case",
+  "type": "object",
+  "required": ["case_id","at","entity_ids","expected_state_ids"],
+  "properties": {
+    "case_id": {"type":"string","minLength":1},
+    "at": {"type":"string","format":"date-time"},
+    "entity_ids": {"type":"array","items":{"type":"string","minLength":1}},
+    "expected_state_ids": {"type":"array","items":{"type":"string","minLength":1}}
+  },
+  "additionalProperties": false
+}

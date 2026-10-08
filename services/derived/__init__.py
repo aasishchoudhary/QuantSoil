@@ -1,0 +1,1 @@
+"""Deterministic derived-intelligence rules."""

@@ -22,11 +22,13 @@ GET /health
 
 GET /v1/map/features?bbox=minLon,minLat,maxLon,maxLat&at=<ISO-8601>&limit=500
 
+GET /v1/map/tiles/{z}/{x}/{y}.pbf?at=<ISO-8601>
+
 The response is a GeoJSON FeatureCollection plus generation metadata. Each feature exposes source, source_record_id, observation_id, observed_at, confidence, raw_payload_hash, parser_version, and license_class so a rendered object remains traceable to its evidence boundary.
 
 ## Production path
 
-The Python API establishes the contract and a dependency-free repository implementation for tests. Its in-memory geometry filter is a conservative bbox candidate check; PostGIS remains the authoritative spatial execution path. The repository now includes a DB-API-compatible PostGIS adapter backed by map_features_in_bbox. Remaining production hardening includes authenticated gateway integration, RBAC, audit events, pagination/tiles, and source/license policy enforcement.
+The Python API establishes the contract and a dependency-free repository implementation for tests. Its in-memory geometry filter is a conservative bbox candidate check; PostGIS remains the authoritative spatial execution path. The repository now includes a DB-API-compatible PostGIS adapter backed by map_features_in_bbox. The production path now includes PostGIS vector tiles via ST_AsMVT. Authentication/authorization remains a gateway concern; direct backend exposure must be prevented. Source/license metadata remains attached to every feature.
 
 ## Map clients
 

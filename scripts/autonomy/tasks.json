@@ -1,35 +1,15 @@
 {
-  "version": 1,
+  "version": 7,
   "tasks": [
     {
-      "id": "observation-evidence-bridge",
-      "priority": 20,
-      "goal": "Implement a deterministic bridge from validated Observation contracts into EvidenceRecord without losing provenance or temporal metadata. Add tests for replay, hash integrity, and metadata preservation.",
-      "done_when": [
-        "Every derived observation retains an evidence reference.",
-        "Payload identity is deterministic.",
-        "Tampering is rejected."
-      ]
+      "id": "predictive-intelligence",
+      "priority": 60,
+      "goal": "Operationalize evidence-backed probabilistic forecasts, calibration, proper scoring, outcome linkage, and model evaluation without promoting predictions into authoritative state."
     },
     {
-      "id": "event-contract",
-      "priority": 30,
-      "goal": "Design and implement the first production Event contract for the event engine, preserving observed versus derived versus predicted state and explicit evidence references. Add JSON schema and tests.",
-      "done_when": [
-        "Observed and predicted state cannot be conflated.",
-        "Event provenance is mandatory.",
-        "Schema and unit tests pass."
-      ]
-    },
-    {
-      "id": "provenance-trace-api",
-      "priority": 40,
-      "goal": "Implement a small deterministic provenance-trace service contract that can resolve an observation or event back to its evidence record and source metadata. Include failure behavior and tests.",
-      "done_when": [
-        "Trace results are deterministic.",
-        "Missing evidence is explicit rather than silently omitted.",
-        "Tests cover valid and missing references."
-      ]
+      "id": "production-security-scale",
+      "priority": 70,
+      "goal": "Complete gateway authorization, rate limiting, audit persistence, vector-tile scale testing, backup restore drills, and performance acceptance for production."
     }
   ]
 }

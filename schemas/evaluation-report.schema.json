@@ -1,0 +1,12 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://gods-eye-world-intelligence.dev/schemas/evaluation-report.schema.json",
+  "title":"Evaluation Report",
+  "type":"object",
+  "required":["passed","gates"],
+  "properties":{
+    "passed":{"type":"boolean"},
+    "gates":{"type":"array","items":{"type":"object","required":["gate_id","passed","detail"],"properties":{"gate_id":{"type":"string","minLength":1},"passed":{"type":"boolean"},"detail":{"type":"string","minLength":1}},"additionalProperties":false}}
+  },
+  "additionalProperties":false
+}

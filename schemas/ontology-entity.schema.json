@@ -1,0 +1,18 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://gods-eye-world-intelligence.dev/schemas/ontology-entity.schema.json",
+  "title":"Ontology Entity",
+  "type":"object",
+  "required":["entity_id","entity_type","evidence_refs"],
+  "properties":{
+    "entity_id":{"type":"string","minLength":1},
+    "entity_type":{"enum":["person","organization","place","facility","event","asset","infrastructure","natural_phenomenon","region"]},
+    "evidence_refs":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","minLength":1}},
+    "identifiers":{"type":"array","items":{"type":"object","required":["namespace","value","kind"],"properties":{"namespace":{"type":"string","minLength":1},"value":{"type":"string","minLength":1},"kind":{"type":"string","minLength":1}},"additionalProperties":false}},
+    "aliases":{"type":"array","items":{"type":"object","required":["value","kind"],"properties":{"value":{"type":"string","minLength":1},"language":{"type":["string","null"]},"kind":{"type":"string","minLength":1}},"additionalProperties":false}},
+    "properties":{"type":"object"},
+    "valid_from":{"type":["string","null"],"format":"date-time"},
+    "valid_to":{"type":["string","null"],"format":"date-time"}
+  },
+  "additionalProperties":false
+}
