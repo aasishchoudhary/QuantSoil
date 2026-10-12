@@ -80,6 +80,7 @@ let analystSource:GeoJsonDataSource|undefined;
 type CachedFeed={expires:number;features:any[]};
 let aircraftFeed:CachedFeed={expires:0,features:[]};
 let earthquakeFeed:CachedFeed={expires:0,features:[]};
+let orbitalFeed:CachedFeed={expires:0,features:[]};
 const aircraftHistory=new Map<string,Array<{lon:number;lat:number;time:number}>>();
 const aircraftOverlays=new Map<string,{marker:any;trail:any}>();
 const handler=new ScreenSpaceEventHandler(viewer.scene.canvas);
@@ -261,14 +262,16 @@ async function refreshMap(){
     if(!response.ok)throw new Error(`HTTP ${response.status}`);
     const data=await response.json();analystFeatures=featureCollection(data);
   }catch(error){failures.push("Analyst API: "+String(error));}
-  const [aircraftResult,eventResult]=await Promise.allSettled([
+  const [aircraftResult,eventResult,orbitalResult]=await Promise.allSettled([
     cachedFeed("/sources/aircraft?bbox="+encodeURIComponent(box),30000,aircraftFeed),
-    cachedFeed("/sources/earthquakes",300000,earthquakeFeed)
+    cachedFeed("/sources/earthquakes",300000,earthquakeFeed),
+    cachedFeed("/sources/orbital",300000,orbitalFeed)
   ]);
   if(aircraftResult.status==="fulfilled")aircraftFeed.features=aircraftResult.value;else failures.push("Aircraft: "+String(aircraftResult.reason));
   if(eventResult.status==="fulfilled")earthquakeFeed.features=eventResult.value;else failures.push("Earthquakes: "+String(eventResult.reason));
+  if(orbitalResult.status==="fulfilled")orbitalFeed.features=orbitalResult.value;else failures.push("Orbital: "+String(orbitalResult.reason));
   if(seq!==refreshSeq)return;
-  const combined=[...analystFeatures,...aircraftFeed.features,...earthquakeFeed.features];
+  const combined=[...analystFeatures,...aircraftFeed.features,...earthquakeFeed.features,...orbitalFeed.features];
   // Deduplicate by stable provider feature ID, preferring the freshest returned copy.
   const byId=new Map<string,any>();
   for(const feature of combined){const id=String(feature?.id??JSON.stringify(feature?.geometry));if(!byId.has(id))byId.set(id,feature);}
