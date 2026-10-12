@@ -1,4 +1,4 @@
-# God's Eye World Intelligence
+# QuantSoil — World Intelligence
 
 Production-grade lawful OSINT/GEOINT platform: evidence first, provenance always, reproducible intelligence.
 
@@ -13,6 +13,12 @@ The repository now contains executable foundations for:
 - evidence-aware geospatial map contracts and PostGIS execution;
 - provider-neutral inference control;
 - bounded autonomous engineering through GitHub Actions + AWS OIDC/Bedrock.
+
+## World intelligence workspace
+
+The Cesium frontend includes a 3D globe, optional NASA GIBS imagery, optional Cesium ion terrain/buildings, public USGS earthquake data, regional ADS-B aircraft observations with bounded trails, CelesTrak SGP4 orbital positions, source provenance, global indexed search, and timeline inspection. Licensed maritime AIS and explicitly authorized camera metadata can be connected through deployment-configured HTTPS GeoJSON endpoints.
+
+See [Video-reference setup and deployment configuration](docs/video-reference-setup.md) and the [public geospatial source registry](docs/geospatial-source-registry.md). Provider availability, coverage, license and freshness are displayed or documented explicitly; no source is treated as live merely because the UI is running.
 
 ## Trust model
 
