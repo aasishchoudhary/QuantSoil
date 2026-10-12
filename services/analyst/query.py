@@ -15,6 +15,7 @@ from services.world_state.query import HistoricalState, StateChange, diff_states
 class MapQueryRepository(Protocol):
     def query_bbox(self, min_lon: float, min_lat: float, max_lon: float, max_lat: float,
                    at: datetime | None = None, limit: int = 500): ...
+    def search(self, query: str, limit: int = 50): ...
 
 @dataclass(frozen=True)
 class AnalystSnapshot:
@@ -81,6 +82,18 @@ class AnalystService:
         return SpatialResult(at or datetime.now(timezone.utc), tuple(
             self.map_repository.query_bbox(*bbox, at, limit)
         ))
+
+    def search(self, query: str, *, limit: int = 50) -> SpatialResult:
+        """Search indexed map projection metadata without mutating authoritative state."""
+        normalized = query.strip() if isinstance(query, str) else ""
+        if not 2 <= len(normalized) <= 128:
+            raise AnalystQueryError("query must contain 2 to 128 characters")
+        if not 1 <= limit <= 100:
+            raise AnalystQueryError("limit must be between 1 and 100")
+        search_fn = getattr(self.map_repository, "search", None)
+        if not callable(search_fn):
+            raise AnalystQueryError("global search is not supported by the configured map repository")
+        return SpatialResult(datetime.now(timezone.utc), tuple(search_fn(normalized, limit)))
 
     @staticmethod
     def evidence_summary(states: tuple[EntityState, ...]) -> EvidenceSummary:
