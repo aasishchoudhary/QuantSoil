@@ -338,6 +338,10 @@ $<HTMLButtonElement>("#terrain-toggle").addEventListener("click",async()=>{
     terrainEnabled=false;button.classList.remove("active");button.textContent="3D TERRAIN";
     return;
   }
+  if(worldTerrain&&buildingsPrimitive){
+    viewer.terrainProvider=worldTerrain;buildingsPrimitive.show=true;terrainEnabled=true;
+    button.classList.add("active");button.textContent="3D TERRAIN ON";return;
+  }
   button.disabled=true;button.textContent="LOADING TERRAIN…";
   try{
     Ion.defaultAccessToken=token;
