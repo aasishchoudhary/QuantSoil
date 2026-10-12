@@ -1,5 +1,5 @@
 import {
-  Viewer, Cartesian2, Cartesian3, GeoJsonDataSource, Color, ConstantProperty, ColorMaterialProperty,
+  Viewer, Cartesian2, Cartesian3, CallbackProperty, GeoJsonDataSource, Color, ConstantProperty, ColorMaterialProperty,
   LabelStyle, OpenStreetMapImageryProvider, WebMapTileServiceImageryProvider, EllipsoidTerrainProvider,
   ScreenSpaceEventHandler, ScreenSpaceEventType, VerticalOrigin
 } from "cesium";
@@ -84,7 +84,7 @@ let aircraftFeed:CachedFeed={expires:0,features:[]};
 let earthquakeFeed:CachedFeed={expires:0,features:[]};
 let orbitalFeed:CachedFeed={expires:0,features:[]};
 const aircraftHistory=new Map<string,Array<{lon:number;lat:number;time:number}>>();
-const aircraftOverlays=new Map<string,{marker:any;trail:any}>();
+const aircraftOverlays=new Map<string,{marker:any;trail:any;motion:any}>();
 const handler=new ScreenSpaceEventHandler(viewer.scene.canvas);
 
 async function cachedFeed(path:string,ttl:number,cache:CachedFeed):Promise<any[]>{
@@ -127,11 +127,26 @@ function recordAircraftAndTrails(features:any[]){
     const image='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><path d="M20 2 L25 15 L36 22 L36 26 L24 23 L23 34 L29 37 L29 39 L20 36 L11 39 L11 37 L17 34 L16 23 L4 26 L4 22 L15 15 Z" fill="#44d9f5" stroke="#061019" stroke-width="1.4"/></svg>');
     let overlay=aircraftOverlays.get(id);
     if(!overlay){
-      const marker=viewer.entities.add({id:"motion:"+id,position:Cartesian3.fromDegrees(Number(coords[0]),Number(coords[1])),properties:{...props,entity_id:id},billboard:{image,scale:.85,rotation:0,alignedAxis:Cartesian3.UNIT_Z,verticalOrigin:VerticalOrigin.BOTTOM},label:{text:String(props.callsign||props.name||id),font:"10px sans-serif",fillColor:Color.fromCssColorString("#c9f8ff"),outlineColor:Color.fromCssColorString("#061019"),outlineWidth:3,style:LabelStyle.FILL_AND_OUTLINE,pixelOffset:new Cartesian2(0,-18)}});
+      const lon=Number(coords[0]),lat=Number(coords[1]);
+      const motion={startLon:lon,startLat:lat,targetLon:lon,targetLat:lat,startedAt:performance.now(),moving:false};
+      const position=new CallbackProperty(()=>{
+        const progress=motion.moving?Math.min(1,(performance.now()-motion.startedAt)/12000):1;
+        if(progress>=1)motion.moving=false;
+        return Cartesian3.fromDegrees(motion.startLon+(motion.targetLon-motion.startLon)*progress,motion.startLat+(motion.targetLat-motion.startLat)*progress);
+      },false);
+      const marker=viewer.entities.add({id:"motion:"+id,position,properties:{...props,entity_id:id},billboard:{image,scale:.85,rotation:0,alignedAxis:Cartesian3.UNIT_Z,verticalOrigin:VerticalOrigin.BOTTOM},label:{text:String(props.callsign||props.name||id),font:"10px sans-serif",fillColor:Color.fromCssColorString("#c9f8ff"),outlineColor:Color.fromCssColorString("#061019"),outlineWidth:3,style:LabelStyle.FILL_AND_OUTLINE,pixelOffset:new Cartesian2(0,-18)}});
       const trailEntity=viewer.entities.add({id:"trail:"+id,polyline:{positions:trail.map(p=>Cartesian3.fromDegrees(p.lon,p.lat)),width:2,material:new ColorMaterialProperty(Color.fromCssColorString("#44d9f5").withAlpha(.55))}});
-      overlay={marker,trail:trailEntity};aircraftOverlays.set(id,overlay);
+      overlay={marker,trail:trailEntity,motion};aircraftOverlays.set(id,overlay);
     }else{
-      overlay.marker.position=Cartesian3.fromDegrees(Number(coords[0]),Number(coords[1]));
+      const lon=Number(coords[0]),lat=Number(coords[1]),motion=overlay.motion;
+      if(Math.abs(lon-motion.targetLon)>0.00001||Math.abs(lat-motion.targetLat)>0.00001){
+        const progress=motion.moving?Math.min(1,(performance.now()-motion.startedAt)/12000):1;
+        motion.startLon=motion.startLon+(motion.targetLon-motion.startLon)*progress;
+        motion.startLat=motion.startLat+(motion.targetLat-motion.startLat)*progress;
+        motion.targetLon=lon;motion.targetLat=lat;motion.startedAt=performance.now();motion.moving=true;
+        viewer.scene.requestRender();
+      }
+      overlay.marker.properties={...props,entity_id:id};
       overlay.marker.billboard.rotation=Number.isFinite(heading)?-heading*Math.PI/180:0;
       overlay.marker.label.text=String(props.callsign||props.name||id);
       overlay.trail.polyline.positions=trail.map(p=>Cartesian3.fromDegrees(p.lon,p.lat));
@@ -375,4 +390,9 @@ viewer.camera.moveEnd.addEventListener(scheduleRefresh);
 // Refresh at a bounded cadence even when the camera is stationary. This queries
 // the configured API; it does not turn static data into a verified live feed.
 window.setInterval(()=>void refreshMap(),30000);
+// requestRenderMode saves idle work; request frames at 10 Hz only while aircraft
+// interpolation is active so observed position changes animate smoothly.
+window.setInterval(()=>{
+  if([...aircraftOverlays.values()].some(overlay=>overlay.motion.moving))viewer.scene.requestRender();
+},100);
 void refreshMap();
