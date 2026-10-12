@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 from services.analyst.query import AnalystQueryError, AnalystService
+from services.analyst.public_sources import PublicSourceError, aircraft_for_bbox, earthquakes
 
 _LOG = logging.getLogger("gods_eye.analyst")
 
@@ -58,6 +59,26 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/sources/earthquakes")
+    def public_earthquakes() -> dict[str, Any]:
+        """USGS past-hour earthquake observations; provider freshness is preserved."""
+        try:
+            return earthquakes()
+        except PublicSourceError as exc:
+            raise HTTPException(502, str(exc)) from exc
+
+    @app.get("/sources/aircraft")
+    def public_aircraft(
+        bbox: str = Query(..., description="minLon,minLat,maxLon,maxLat; regional ADS-B coverage"),
+    ) -> dict[str, Any]:
+        """Regional ADS-B observations from adsb.lol; not a global-coverage guarantee."""
+        try:
+            parts = tuple(float(x.strip()) for x in bbox.split(","))
+            return aircraft_for_bbox(parts)
+        except (ValueError, PublicSourceError) as exc:
+            status_code = 502 if isinstance(exc, PublicSourceError) else 400
+            raise HTTPException(status_code, str(exc)) from exc
 
     @app.get("/snapshot")
     def snapshot(entity_ids: str = Query(...), at: datetime = Query(...)) -> dict[str, Any]:
