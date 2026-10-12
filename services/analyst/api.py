@@ -6,6 +6,8 @@ import hmac
 import json
 import logging
 import os
+import threading
+import time
 from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -13,6 +15,28 @@ from services.analyst.query import AnalystQueryError, AnalystService
 from services.analyst.public_sources import PublicSourceError, aircraft_for_bbox, earthquakes, satellites
 
 _LOG = logging.getLogger("gods_eye.analyst")
+_SOURCE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_SOURCE_CACHE_LOCK = threading.Lock()
+
+
+def _cached_public_source(key: str, ttl_seconds: int, producer) -> dict[str, Any]:
+    """Bound provider request rates across clients while keeping responses read-only."""
+    now = time.monotonic()
+    with _SOURCE_CACHE_LOCK:
+        cached = _SOURCE_CACHE.get(key)
+        if cached and cached[0] > now:
+            return cached[1]
+    result = producer()
+    with _SOURCE_CACHE_LOCK:
+        _SOURCE_CACHE[key] = (time.monotonic() + ttl_seconds, result)
+        # Keep memory bounded if many distinct viewport boxes are requested.
+        if len(_SOURCE_CACHE) > 256:
+            expired = [name for name, item in _SOURCE_CACHE.items() if item[0] <= time.monotonic()]
+            for name in expired:
+                _SOURCE_CACHE.pop(name, None)
+            while len(_SOURCE_CACHE) > 256:
+                _SOURCE_CACHE.pop(next(iter(_SOURCE_CACHE)))
+    return result
 
 def create_app(service: AnalystService, audit_store=None) -> FastAPI:
     app = FastAPI(title="God's Eye World Intelligence — Analyst API", version="0.1.0")
@@ -64,7 +88,7 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
     def public_earthquakes() -> dict[str, Any]:
         """USGS past-hour earthquake observations; provider freshness is preserved."""
         try:
-            return earthquakes()
+            return _cached_public_source("usgs-earthquakes", 60, earthquakes)
         except PublicSourceError as exc:
             raise HTTPException(502, str(exc)) from exc
 
@@ -72,7 +96,7 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
     def public_satellites(limit: int = Query(default=250, ge=1, le=1000)) -> dict[str, Any]:
         """Propagated CelesTrak visual-satellite positions; derived, not direct observations."""
         try:
-            return satellites(limit=limit)
+            return _cached_public_source(f"celestrak-visual:{limit}", 60, lambda: satellites(limit=limit))
         except (ValueError, PublicSourceError) as exc:
             status_code = 502 if isinstance(exc, PublicSourceError) else 400
             raise HTTPException(status_code, str(exc)) from exc
@@ -84,7 +108,10 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
         """Regional ADS-B observations from adsb.lol; not a global-coverage guarantee."""
         try:
             parts = tuple(float(x.strip()) for x in bbox.split(","))
-            return aircraft_for_bbox(parts)
+            if len(parts) != 4:
+                raise ValueError("bbox must contain minLon,minLat,maxLon,maxLat")
+            key = "adsb:" + ",".join(f"{value:.3f}" for value in parts)
+            return _cached_public_source(key, 15, lambda: aircraft_for_bbox(parts))
         except (ValueError, PublicSourceError) as exc:
             status_code = 502 if isinstance(exc, PublicSourceError) else 400
             raise HTTPException(status_code, str(exc)) from exc
