@@ -161,9 +161,14 @@ function safeText(value:any):string {
 function featureProps(feature:any):Record<string,any>{return feature?.properties||{};}
 function applyLayerVisibility(){
   for(const entity of viewer.entities.values){
+    const id=String(entity.id??"");
+    if(id.startsWith("motion:")){entity.show=activeLayers.has("aircraft");continue;}
+    if(id.startsWith("trail:")){
+      const history=aircraftHistory.get(id.slice(6))||[];
+      entity.show=activeLayers.has("aircraft")&&history.length>1;continue;
+    }
     const p=(entity.properties as any)?.toJSON?.()||{};
-    const kind=category({properties:p});
-    entity.show=activeLayers.has(kind);
+    entity.show=activeLayers.has(category({properties:p}));
   }
   if(analystSource) for(const entity of analystSource.entities.values){
     const p=(entity.properties as any)?.toJSON?.()||{};
