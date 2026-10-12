@@ -71,7 +71,7 @@ def earthquakes(*, fetch_json=_fetch_json) -> dict[str, Any]:
                 "source_entity_id": source_id,
                 "observed_at": observed,
                 "retrieved_at": retrieved,
-                "freshness": "unknown" if not observed else "fresh" if (datetime.now(timezone.utc).timestamp() - float(props.get("time", 0))/1000) <= 3600 else "stale",
+                "freshness": "unknown" if not observed else "fresh" if (datetime.now(timezone.utc).timestamp() - datetime.fromisoformat(observed.replace("Z", "+00:00")).timestamp()) <= 3600 else "stale",
                 "magnitude": props.get("mag"),
                 "place": props.get("place"),
                 "event_status": props.get("status"),
@@ -102,8 +102,8 @@ def aircraft_for_bbox(bbox: tuple[float, float, float, float], *, fetch_json=_fe
     # Approximate bounding-box half-diagonal in km, capped to the documented endpoint limit.
     lat_km = (north - south) * 111.0 / 2
     lon_km = (east - west) * 111.0 * max(0.05, math.cos(math.radians(lat))) / 2
-    radius = max(10, min(250, int(math.ceil(math.hypot(lat_km, lon_km)))))
-    url = f"{ADSB_BASE}/lat/{lat:.5f}/lon/{lon:.5f}/dist/{radius}"
+    radius_nm = max(5, min(250, int(math.ceil(math.hypot(lat_km, lon_km) / 1.852))))
+    url = f"{ADSB_BASE}/lat/{lat:.5f}/lon/{lon:.5f}/dist/{radius_nm}"
     retrieved_dt = datetime.now(timezone.utc)
     retrieved = retrieved_dt.isoformat().replace("+00:00", "Z")
     payload = fetch_json(url)
@@ -142,4 +142,4 @@ def aircraft_for_bbox(bbox: tuple[float, float, float, float], *, fetch_json=_fe
             "geometry": {"type": "Point", "coordinates": [aircraft_lon, aircraft_lat]},
             "properties": props,
         })
-    return {"type": "FeatureCollection", "source": "adsb-lol", "retrieved_at": retrieved, "coverage_radius_km": radius, "count": len(features), "features": features}
+    return {"type": "FeatureCollection", "source": "adsb-lol", "retrieved_at": retrieved, "coverage_radius_nm": radius_nm, "count": len(features), "features": features}
