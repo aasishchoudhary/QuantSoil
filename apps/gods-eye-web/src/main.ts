@@ -120,6 +120,8 @@ function recordAircraftAndTrails(features:any[]){
     const observedMs=Date.parse(String(feature.properties?.observed_at||""));
     const sampleTime=Number.isFinite(observedMs)?observedMs:now;
     const changed=!last||Math.abs(last.lon-nextPoint.lon)>0.00001||Math.abs(last.lat-nextPoint.lat)>0.00001;
+    // Never regress a track when a provider delivers an older observation later.
+    if(changed&&last&&sampleTime<=last.time)continue;
     if(changed){
       if(last){
         const elapsed=Math.max(500,Math.min(8000,sampleTime-last.time||now-last.time));
