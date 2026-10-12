@@ -13,7 +13,7 @@ SELECT feature_id, feature_type, source, source_record_id,
        observed_at, raw_payload_hash, parser_version, license_class, valid_from, valid_to
 FROM map_features
 WHERE lower(concat_ws(' ', feature_type, source, source_record_id, properties::text))
-      LIKE lower(%s) ESCAPE '\\'
+      LIKE lower(%s)
 ORDER BY observed_at DESC
 LIMIT %s
 """
@@ -38,7 +38,7 @@ class PostgresMapRepository:
             raise ValueError("query must contain 2 to 128 characters")
         if not 1 <= limit <= 100:
             raise ValueError("limit must be between 1 and 100")
-        literal = query.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        literal = query.strip()
         try:
             with self._connection.cursor() as cursor:
                 cursor.execute(_SEARCH, (f"%{literal}%", limit))
