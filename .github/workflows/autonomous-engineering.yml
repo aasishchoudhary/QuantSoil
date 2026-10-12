@@ -73,6 +73,7 @@ jobs:
         id: model
         env:
           AWS_REGION: ap-south-1
+          GODS_EYE_BEDROCK_PROFILE_ID: \${{ vars.GODS_EYE_BEDROCK_PROFILE_ID }}
         run: |
           aws sts get-caller-identity
           python - <<'PY' > /tmp/model.txt
@@ -83,6 +84,17 @@ jobs:
               "apac.amazon.nova-lite-v1:0",
               "apac.amazon.nova-micro-v1:0",
           }
+          # An operator may pin a profile ID when discovery permission is
+          # intentionally omitted. Invocation is still constrained by IAM.
+          configured = os.environ.get("GODS_EYE_BEDROCK_PROFILE_ID", "").strip()
+          if configured:
+              if configured not in preferred:
+                  raise SystemExit(
+                      "GODS_EYE_BEDROCK_PROFILE_ID must be an approved APAC Nova "
+                      "Lite/Micro profile ID; do not configure an arbitrary model."
+                  )
+              print(configured)
+              raise SystemExit(0)
 
           p = subprocess.run(
               ["aws", "bedrock", "list-inference-profiles",
@@ -91,7 +103,15 @@ jobs:
               text=True, capture_output=True, check=False,
           )
           if p.returncode != 0:
-              print(p.stderr.strip(), file=sys.stderr)
+              error = p.stderr.strip()
+              print(error, file=sys.stderr)
+              if "AccessDeniedException" in error or "not authorized" in error:
+                  raise SystemExit(
+                      "Bedrock profile discovery was denied. Apply "
+                      "infrastructure/aws/autonomy with bedrock:ListInferenceProfiles, "
+                      "or set the repository variable GODS_EYE_BEDROCK_PROFILE_ID "
+                      "to an approved profile ID and ensure the role can invoke its ARN."
+                  )
               raise SystemExit("Unable to discover Bedrock inference profiles")
 
           data = json.loads(p.stdout)
@@ -106,11 +126,13 @@ jobs:
                   raise SystemExit(0)
           raise SystemExit(
               "No ACTIVE APAC Nova Lite/Micro system-defined inference profile "
-              "is available in ap-south-1"
+              "is available in ap-south-1. Set GODS_EYE_BEDROCK_PROFILE_ID only "
+              "after confirming the profile exists and is authorized."
           )
           PY
           echo "model_id=$(cat /tmp/model.txt)" >> "$GITHUB_OUTPUT"
           echo "Selected authorized Bedrock inference profile: $(cat /tmp/model.txt)"
+
       - name: Install autonomy dependencies
         if: steps.gate.outputs.proceed == 'true'
         run: python -m pip install --upgrade pip && python -m pip install -e ".[test,autonomy]"
