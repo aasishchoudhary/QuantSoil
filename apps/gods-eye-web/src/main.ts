@@ -1,7 +1,7 @@
 import {
   Viewer, Cartesian3, GeoJsonDataSource, Color, ConstantProperty,
   OpenStreetMapImageryProvider, EllipsoidTerrainProvider, ScreenSpaceEventHandler,
-  ScreenSpaceEventType, Cartographic, Math as CesiumMath
+  ScreenSpaceEventType, Cartographic
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import "./style.css";
@@ -227,7 +227,6 @@ viewer.camera.changed.addEventListener(scheduleRefresh);
 viewer.scene.postRender.addEventListener(()=>{
   const p=viewer.camera.positionCartographic;
   $<HTMLElement>("#altitude").textContent=p?Math.round(p.height/1000).toLocaleString()+" KM ALTITUDE":"GLOBAL VIEW";
-  const cart=viewer.camera.pickEllipsoid(new (Cartographic as any)(),viewer.scene.globe.ellipsoid);
 });
 window.setInterval(()=>{$<HTMLElement>("#clock").textContent=new Date().toISOString().slice(11,19)+" UTC";},1000);
 viewer.camera.moveEnd.addEventListener(scheduleRefresh);
