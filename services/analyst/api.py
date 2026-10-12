@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 from services.analyst.query import AnalystQueryError, AnalystService
-from services.analyst.public_sources import PublicSourceError, aircraft_for_bbox, earthquakes
+from services.analyst.public_sources import PublicSourceError, aircraft_for_bbox, earthquakes, satellites
 
 _LOG = logging.getLogger("gods_eye.analyst")
 
@@ -67,6 +67,15 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
             return earthquakes()
         except PublicSourceError as exc:
             raise HTTPException(502, str(exc)) from exc
+
+    @app.get("/sources/satellites")
+    def public_satellites(limit: int = Query(default=250, ge=1, le=1000)) -> dict[str, Any]:
+        """Propagated CelesTrak visual-satellite positions; derived, not direct observations."""
+        try:
+            return satellites(limit=limit)
+        except (ValueError, PublicSourceError) as exc:
+            status_code = 502 if isinstance(exc, PublicSourceError) else 400
+            raise HTTPException(status_code, str(exc)) from exc
 
     @app.get("/sources/aircraft")
     def public_aircraft(
