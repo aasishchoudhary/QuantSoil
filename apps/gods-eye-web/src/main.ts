@@ -19,11 +19,13 @@ app.innerHTML = `
     <aside class="left-panel">
       <div class="panel-head"><span>GLOBAL MONITOR</span><span class="live-dot"></span></div>
       <div class="search-wrap"><span>⌕</span><input id="search" placeholder="Search entity / identifier"/><button id="search-go">↵</button></div>
-      <div class="section-label">INTELLIGENCE LAYERS <span id="layer-count">04</span></div>
+      <div class="section-label">INTELLIGENCE LAYERS <span id="layer-count">06</span></div>
       <div class="layer-list">
         <label class="layer-row"><span class="layer-icon cyan">✈</span><span class="layer-copy"><b>Aircraft & flight data</b><small id="aircraft-status">Waiting for source</small></span><input type="checkbox" data-layer="aircraft" checked/><i></i></label>
         <label class="layer-row"><span class="layer-icon violet">◉</span><span class="layer-copy"><b>Satellite / orbital objects</b><small id="satellite-status">Provider not configured</small></span><input type="checkbox" data-layer="satellite" checked/><i></i></label>
         <label class="layer-row"><span class="layer-icon amber">⌁</span><span class="layer-copy"><b>Earth events</b><small id="events-status">Waiting for source</small></span><input type="checkbox" data-layer="event" checked/><i></i></label>
+        <label class="layer-row"><span class="layer-icon green">◆</span><span class="layer-copy"><b>Vessels / maritime</b><small id="vessel-status">No AIS provider configured</small></span><input type="checkbox" data-layer="vessel" checked/><i></i></label>
+        <label class="layer-row"><span class="layer-icon violet">▣</span><span class="layer-copy"><b>Authorized camera metadata</b><small id="camera-status">No authorized source configured</small></span><input type="checkbox" data-layer="camera" checked/><i></i></label>
         <label class="layer-row"><span class="layer-icon green">⌖</span><span class="layer-copy"><b>Other spatial evidence</b><small id="other-status">Waiting for source</small></span><input type="checkbox" data-layer="other" checked/><i></i></label>
       </div>
       <div class="section-label">MAP CONTROLS</div>
@@ -35,7 +37,7 @@ app.innerHTML = `
     <section class="map-wrap"><div id="globe"></div>
       <div class="map-top"><div class="coord-chip"><span class="crosshair">⌖</span><span id="coordinates">LAT — / LON —</span></div><div class="map-buttons"><button id="view-3d" class="active">3D GLOBE</button><button id="view-2d">2D MAP</button><button id="imagery-toggle" title="Toggle NASA GIBS satellite imagery">SATELLITE</button></div></div>
       <div class="map-bottom-left"><span class="scale-line"></span><span id="altitude">GLOBAL VIEW</span><span class="map-sep">|</span><span id="feature-total">0 FEATURES</span></div>
-      <div class="map-bottom-right"><span class="legend-dot cyan-bg"></span> AIRCRAFT <span class="legend-dot amber-bg"></span> EVENTS <span class="legend-dot violet-bg"></span> ORBITAL <span class="legend-dot grey-bg"></span> OTHER</div>
+      <div class="map-bottom-right"><span class="legend-dot cyan-bg"></span> AIRCRAFT <span class="legend-dot amber-bg"></span> EVENTS <span class="legend-dot violet-bg"></span> ORBITAL <span class="legend-dot vessel-bg"></span> VESSELS <span class="legend-dot grey-bg"></span> OTHER</div>
       <div id="map-message" class="map-message">Connecting to governed spatial API…</div>
     </section>
     <aside id="inspector" class="right-panel">
@@ -75,7 +77,7 @@ let sourceFeatures:any[]=[];
 let selected:any=null;
 let refreshSeq=0;
 let refreshTimer:number|undefined;
-let activeLayers=new Set(["aircraft","satellite","event","other"]);
+let activeLayers=new Set(["aircraft","satellite","event","vessel","camera","other"]);
 let analystSource:GeoJsonDataSource|undefined;
 type CachedFeed={expires:number;features:any[]};
 let aircraftFeed:CachedFeed={expires:0,features:[]};
@@ -149,6 +151,8 @@ function category(feature:any):string {
   if(/aircraft|flight|plane|ads.?b/.test(raw))return "aircraft";
   if(/satellite|orbital|spacecraft|orbit/.test(raw))return "satellite";
   if(/earthquake|event|fire|weather|disaster|volcano/.test(raw))return "event";
+  if(/vessel|ship|maritime|\bais\b/.test(raw))return "vessel";
+  if(/camera|cctv|video_source/.test(raw))return "camera";
   return "other";
 }
 function propValue(value:any):string {
@@ -235,7 +239,7 @@ function paintSource(data:any){
       ds.entities.values.forEach(e=>{
         const feature=sourceFeatures.find(f=>String(f.id??f.properties?.id??f.properties?.entity_id)===String(e.id));
         const kind=category(feature||{properties:(e.properties as any)?.toJSON?.()||{}});
-        const color=kind==="aircraft"?Color.fromCssColorString("#44d9f5"):kind==="event"?Color.fromCssColorString("#ffb64d"):kind==="satellite"?Color.fromCssColorString("#b49aff"):Color.fromCssColorString("#a9bac9");
+        const color=kind==="aircraft"?Color.fromCssColorString("#44d9f5"):kind==="event"?Color.fromCssColorString("#ffb64d"):kind==="satellite"?Color.fromCssColorString("#b49aff"):kind==="vessel"?Color.fromCssColorString("#59e0b1"):kind==="camera"?Color.fromCssColorString("#ef83ff"):Color.fromCssColorString("#a9bac9");
         if(e.point){e.point.color=new ConstantProperty(color);e.point.pixelSize=new ConstantProperty(7);e.point.outlineColor=new ConstantProperty(Color.fromCssColorString("#061019"));e.point.outlineWidth=new ConstantProperty(1);if(kind==="aircraft")e.show=false;}
         if(e.polyline){e.polyline.material=new ColorMaterialProperty(color.withAlpha(.8));e.polyline.width=new ConstantProperty(2);}
       });
@@ -243,11 +247,13 @@ function paintSource(data:any){
     }).catch(()=>{message.textContent="Map payload could not be rendered.";});
   }
   $<HTMLSpanElement>("#feature-total").textContent=sourceFeatures.length+" FEATURES";
-  const counts={aircraft:0,satellite:0,event:0,other:0};
+  const counts={aircraft:0,satellite:0,event:0,vessel:0,camera:0,other:0};
   sourceFeatures.forEach(f=>counts[category(f) as keyof typeof counts]++);
   $<HTMLElement>("#aircraft-status").textContent=counts.aircraft+" features returned";
   $<HTMLElement>("#satellite-status").textContent=counts.satellite+" features returned";
   $<HTMLElement>("#events-status").textContent=counts.event+" features returned";
+  $<HTMLElement>("#vessel-status").textContent=counts.vessel?counts.vessel+" evidence features":"No AIS provider configured";
+  $<HTMLElement>("#camera-status").textContent=counts.camera?counts.camera+" authorized metadata features":"No authorized source configured";
   $<HTMLElement>("#other-status").textContent=counts.other+" features returned";
   $<HTMLElement>("#map-message").textContent=sourceFeatures.length?"Spatial observations loaded; timestamps and provider determine freshness.":"No features in this viewport.";
   $<HTMLElement>("#map-message").classList.toggle("hidden",sourceFeatures.length>0);
