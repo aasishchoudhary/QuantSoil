@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 import math
+import os
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -143,3 +144,101 @@ def aircraft_for_bbox(bbox: tuple[float, float, float, float], *, fetch_json=_fe
             "properties": props,
         })
     return {"type": "FeatureCollection", "source": "adsb-lol", "retrieved_at": retrieved, "coverage_radius_nm": radius_nm, "count": len(features), "features": features}
+
+
+class PublicSourceNotConfigured(PublicSourceError):
+    """An optional source has no deployment-provided authorized endpoint."""
+
+
+def configured_geojson_feed(
+    entity_type: str, *, url_env: str, token_env: str, provider_env: str,
+    license_env: str, payload_loader=None,
+) -> dict[str, Any]:
+    """Normalize an operator-configured HTTPS GeoJSON feed to safe point observations.
+
+    The URL and optional bearer token are deployment settings, never request parameters.
+    This adapter supports metadata only; it does not fetch or proxy camera video streams.
+    """
+    from urllib.parse import urlparse
+
+    feed_url = os.getenv(url_env, "").strip()
+    if not feed_url:
+        raise PublicSourceNotConfigured(f"{entity_type} source is not configured")
+    parsed = urlparse(feed_url)
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+        raise PublicSourceError("configured feed URL must be HTTPS without embedded credentials")
+    token = os.getenv(token_env, "").strip()
+    if payload_loader is not None:
+        payload = payload_loader(feed_url)
+    else:
+        headers = {"Accept": "application/geo+json, application/json", "User-Agent": USER_AGENT}
+        if token:
+            headers["Authorization"] = "Bearer " + token
+        request = Request(feed_url, headers=headers)
+        try:
+            with urlopen(request, timeout=8.0) as response:
+                if response.status != 200:
+                    raise PublicSourceError(f"configured provider returned HTTP {response.status}")
+                raw = response.read(2_000_001)
+            if len(raw) > 2_000_000:
+                raise PublicSourceError("configured provider response exceeded size limit")
+            payload = json.loads(raw)
+        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise PublicSourceError(f"configured provider request failed: {type(exc).__name__}") from exc
+    if not isinstance(payload, dict) or payload.get("type") != "FeatureCollection" or not isinstance(payload.get("features"), list):
+        raise PublicSourceError("configured provider must return a GeoJSON FeatureCollection")
+    provider_id = os.getenv(provider_env, "").strip() or "operator-configured-" + entity_type
+    license_id = os.getenv(license_env, "").strip() or "license-not-declared"
+    retrieved = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    max_features = 1000
+    features = []
+    for item in payload["features"][:max_features]:
+        if not isinstance(item, dict) or item.get("type") != "Feature":
+            continue
+        geometry = item.get("geometry")
+        if not isinstance(geometry, dict) or geometry.get("type") != "Point":
+            continue
+        coords = geometry.get("coordinates")
+        if not isinstance(coords, list) or len(coords) < 2:
+            continue
+        try:
+            lon, lat = float(coords[0]), float(coords[1])
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(lon) or not math.isfinite(lat) or not (-180 <= lon <= 180 and -90 <= lat <= 90):
+            continue
+        source_props = item.get("properties") if isinstance(item.get("properties"), dict) else {}
+        observed_value = source_props.get("observed_at") or source_props.get("timestamp") or source_props.get("last_seen")
+        observed_dt = None
+        if isinstance(observed_value, str):
+            try:
+                observed_dt = datetime.fromisoformat(observed_value.replace("Z", "+00:00"))
+                if observed_dt.tzinfo is None or observed_dt.utcoffset() is None:
+                    observed_dt = None
+                else:
+                    observed_dt = observed_dt.astimezone(timezone.utc)
+            except ValueError:
+                observed_dt = None
+        age = (datetime.now(timezone.utc) - observed_dt).total_seconds() if observed_dt else None
+        if age is None:
+            freshness = "unknown"
+        elif entity_type == "vessel":
+            freshness = "fresh" if age <= 900 else "delayed" if age <= 3600 else "stale"
+        else:
+            freshness = "fresh" if age <= 86400 else "delayed" if age <= 604800 else "stale"
+        source_id = str(item.get("id") or source_props.get("mmsi") or source_props.get("id") or f"{entity_type}-{len(features)+1}")
+        props = dict(source_props)
+        props.update({
+            "entity_type": entity_type, "provider_id": provider_id,
+            "source": provider_id, "source_url": feed_url,
+            "source_entity_id": source_id, "license_id": license_id,
+            "observed_at": observed_dt.isoformat().replace("+00:00", "Z") if observed_dt else None,
+            "retrieved_at": retrieved, "freshness": freshness, "kind": "observed",
+        })
+        features.append({
+            "type": "Feature", "id": provider_id + ":" + source_id,
+            "geometry": {"type": "Point", "coordinates": [lon, lat] + ([float(coords[2])] if len(coords) > 2 and isinstance(coords[2], (int, float)) else [])},
+            "properties": props,
+        })
+    return {"type": "FeatureCollection", "source": provider_id, "license_id": license_id,
+            "retrieved_at": retrieved, "count": len(features), "features": features}
