@@ -1,7 +1,8 @@
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone
 from services.analyst.public_sources import (
-    PublicSourceError, aircraft_for_bbox, earthquakes,
+    PublicSourceError, _fetch_json, aircraft_for_bbox, earthquakes,
 )
 
 
@@ -72,6 +73,15 @@ class PublicSourceAdapterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             aircraft_for_bbox((181, 0, 182, 1), fetch_json=lambda _: {})
 
+    def test_json_fetch_rejects_oversized_response(self):
+        class OversizedResponse:
+            status = 200
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+            def read(self, limit): return b"x" * limit
+        with patch("services.analyst.public_sources.urlopen", return_value=OversizedResponse()):
+            with self.assertRaisesRegex(PublicSourceError, "8 MB"):
+                _fetch_json("https://example.org/feed")
     def test_provider_errors_are_not_hidden_as_empty_data(self):
         def failed(_):
             raise PublicSourceError("provider down")
