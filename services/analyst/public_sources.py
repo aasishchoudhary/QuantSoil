@@ -154,7 +154,7 @@ def satellites(*, limit: int = 250, fetch_text=None, now: datetime | None = None
         raise ValueError("limit must be between 1 and 1000")
     try:
         from sgp4.api import Satrec, jday
-        from sgp4.functions import gstime
+        from sgp4.propagation import gstime
     except ImportError as exc:
         raise PublicSourceError("SGP4 dependency is not installed") from exc
     current = now or datetime.now(timezone.utc)
