@@ -9,7 +9,8 @@ This is an initial governance catalogue. Listing a provider does not mean its ad
 - **CelesTrak station-group orbital objects:** adapter implemented in `services/analyst/orbital_sources.py`; exposed through `GET /sources/orbital`. TLEs are propagated with SGP4 and converted from TEME to WGS84; resulting positions are derived/predicted, not direct observations.
 - **NASA GIBS imagery:** optional browser imagery toggle uses VIIRS corrected-reflectance imagery with a two-day date offset. It is satellite imagery, not street-level aerial photography or live video.
 - **Cesium World Terrain / OSM Buildings:** optional frontend control is available when `VITE_CESIUM_ION_TOKEN` is supplied at build time. Use a public, domain-restricted token with only required asset access; do not commit tokens to source control. This capability is not enabled in builds without the variable.
-- **Not implemented by this change:** maritime AIS, CCTV, traffic feeds, real-time 3D terrain/buildings, a global entity search service, or a persistent backend history store for aircraft positions.
+- **Global map metadata search:** implemented through `GET /search?q=...` in the analyst API, backed by the PostGIS trigram index on map feature metadata. The in-memory repository supports local/test searches. This searches indexed map projections; it is not a web-wide search engine.
+- **Not implemented by this change:** maritime AIS, CCTV/video feeds, traffic feeds, or a persistent backend history store for aircraft positions.
 
 A route being present does not guarantee network reachability from a particular deployment. Provider failures return explicit errors and the UI should continue to identify unavailable sources rather than inventing data.
 
