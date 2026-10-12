@@ -4,5 +4,5 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 CREATE INDEX IF NOT EXISTS idx_map_features_global_search
 ON map_features USING GIN (
-    lower(concat_ws(' ', feature_type, source, source_record_id, properties::text)) gin_trgm_ops
+    lower(coalesce(feature_type, '') || ' ' || coalesce(source, '') || ' ' || coalesce(source_record_id, '') || ' ' || coalesce(properties::text, '')) gin_trgm_ops
 );
