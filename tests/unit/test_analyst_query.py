@@ -6,6 +6,7 @@ T=datetime(2026,1,1,tzinfo=timezone.utc)
 
 class MapRepo:
     def query_bbox(self,*args): return ["feature"]
+    def search(self,query,limit=50): return [f"match:{query}"]
 
 def state(sid, eid, start, end, props, evidence):
     return EntityState(sid,eid,"place",start,end,start,start,props,None,.9,(evidence,))
@@ -34,3 +35,15 @@ def test_invalid_time_is_rejected():
         pass
     else:
         raise AssertionError("naive timestamp accepted")
+
+def test_global_search_is_bounded_and_delegates_to_map_repository():
+    service=AnalystService(InMemoryWorldStateRepository(),MapRepo())
+    result=service.search("ABC123",limit=5)
+    assert result.features==("match:ABC123",)
+    for query in ("x"," " * 3,"q" * 129):
+        try:
+            service.search(query)
+        except AnalystQueryError:
+            pass
+        else:
+            raise AssertionError("invalid search query accepted")
