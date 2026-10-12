@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 from services.analyst.query import AnalystQueryError, AnalystService
 from services.analyst.public_sources import PublicSourceError, aircraft_for_bbox, earthquakes
+from services.analyst.orbital_sources import OrbitalSourceError, orbital_objects
 
 _LOG = logging.getLogger("gods_eye.analyst")
 
@@ -79,6 +80,14 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
         except (ValueError, PublicSourceError) as exc:
             status_code = 502 if isinstance(exc, PublicSourceError) else 400
             raise HTTPException(status_code, str(exc)) from exc
+
+    @app.get("/sources/orbital")
+    def public_orbital_objects() -> dict[str, Any]:
+        """Propagated station-group orbital positions; output is derived, not observed."""
+        try:
+            return orbital_objects()
+        except OrbitalSourceError as exc:
+            raise HTTPException(502, str(exc)) from exc
 
     @app.get("/snapshot")
     def snapshot(entity_ids: str = Query(...), at: datetime = Query(...)) -> dict[str, Any]:
