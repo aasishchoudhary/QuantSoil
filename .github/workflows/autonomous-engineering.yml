@@ -73,7 +73,7 @@ jobs:
         id: model
         env:
           AWS_REGION: ap-south-1
-          GODS_EYE_BEDROCK_PROFILE_ID: \${{ vars.GODS_EYE_BEDROCK_PROFILE_ID }}
+          GODS_EYE_BEDROCK_PROFILE_ID: ${{ vars.GODS_EYE_BEDROCK_PROFILE_ID }}
         run: |
           aws sts get-caller-identity
           python - <<'PY' > /tmp/model.txt
