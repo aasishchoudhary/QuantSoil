@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import json
 from typing import Any
 
 try:
@@ -97,6 +98,25 @@ class InMemoryMapRepository:
             if len(result) >= limit:
                 break
         return result
+
+    def search(self, query: str, limit: int = 50) -> list[MapFeature]:
+        """Small-fixture search implementation for contract tests and local demos."""
+        normalized = query.strip().casefold()
+        if not 2 <= len(normalized) <= 128:
+            raise ValueError("query must contain 2 to 128 characters")
+        if not 1 <= limit <= 100:
+            raise ValueError("limit must be between 1 and 100")
+        matches = []
+        for feature in self._features:
+            haystack = " ".join((
+                feature.feature_type, feature.source, feature.source_record_id,
+                json.dumps(feature.properties, sort_keys=True, default=str),
+            )).casefold()
+            if normalized in haystack:
+                matches.append(feature)
+                if len(matches) >= limit:
+                    break
+        return matches
 
 
 def _coordinates(geometry: dict[str, Any]) -> list[list[float]]:
