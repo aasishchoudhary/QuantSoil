@@ -31,7 +31,7 @@ A route being present does not guarantee network reachability from a particular 
 | Space weather | NOAA SWPC | Solar/geomagnetic products | Product-specific | Show product time; separate forecast from observation |
 | Geocoding | Nominatim or authorized provider | Place lookup | Request-time result, not tracking | Respect usage policy, identify client, cache appropriately |
 
-## Normalized freshness states
+## Runtime validation status\n\nCI verifies source parsing, API code compilation, frontend compilation and unit-test behaviour. It does not prove that external providers are reachable from a deployment, that credentials and rate limits are configured, or that the browser has been end-to-end tested on a phone. Verify provider connectivity and visual behaviour in the deployed environment before treating this workspace as operational.\n\n## Normalized freshness states
 
 - fresh: within provider-specific documented threshold.
 - delayed: data exceeds preferred threshold.
