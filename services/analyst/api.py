@@ -129,6 +129,28 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
             ],
         }
 
+    @app.get("/search")
+    def search(
+        q: str = Query(..., min_length=2, max_length=128, description="Search map feature type, source, identifier or indexed properties"),
+        limit: int = Query(default=25, ge=1, le=100),
+    ) -> dict[str, Any]:
+        try:
+            result = service.search(q, limit=limit)
+        except AnalystQueryError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except Exception as exc:
+            _LOG.exception("analyst global search failed")
+            raise HTTPException(503, "global search is temporarily unavailable") from exc
+        return {
+            "type": "FeatureCollection",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "count": len(result.features),
+            "features": [
+                item.to_geojson() if hasattr(item, "to_geojson") else item
+                for item in result.features
+            ],
+        }
+
     @app.get("/timeline/{entity_id}")
     def timeline(entity_id: str, start: datetime = Query(...), end: datetime = Query(...)) -> dict[str, Any]:
         try:
