@@ -143,3 +143,79 @@ def aircraft_for_bbox(bbox: tuple[float, float, float, float], *, fetch_json=_fe
             "properties": props,
         })
     return {"type": "FeatureCollection", "source": "adsb-lol", "retrieved_at": retrieved, "coverage_radius_nm": radius_nm, "count": len(features), "features": features}
+
+
+def satellites(*, limit: int = 250, fetch_text=None, now: datetime | None = None) -> dict[str, Any]:
+    """Propagate public CelesTrak visual-satellite TLEs into approximate subpoints.
+
+    SGP4 positions are derived from orbital elements, not direct observations.
+    """
+    if not 1 <= limit <= 1000:
+        raise ValueError("limit must be between 1 and 1000")
+    try:
+        from sgp4.api import Satrec, jday
+        from sgp4.functions import gstime
+    except ImportError as exc:
+        raise PublicSourceError("SGP4 dependency is not installed") from exc
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    current = current.astimezone(timezone.utc)
+    if fetch_text is None:
+        fetch_text = lambda url: _fetch_bytes(url).decode("utf-8")
+    try:
+        raw = fetch_text("https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle")
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise PublicSourceError("CelesTrak returned invalid TLE text") from exc
+    lines = [line.strip() for line in raw.splitlines() if line.strip()]
+    retrieved = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    jd, fraction = jday(current.year, current.month, current.day, current.hour, current.minute,
+                        current.second + current.microsecond / 1_000_000)
+    theta = gstime(jd + fraction)
+    ct, st = math.cos(theta), math.sin(theta)
+    features = []
+    for i in range(0, len(lines) - 2, 3):
+        name, line1, line2 = lines[i:i+3]
+        if not line1.startswith("1 ") or not line2.startswith("2 "):
+            continue
+        try:
+            sat = Satrec.twoline2rv(line1, line2)
+            error, pos, _vel = sat.sgp4(jd, fraction)
+        except Exception:
+            continue
+        if error:
+            continue
+        x, y, z = pos
+        ex, ey = ct*x + st*y, -st*x + ct*y
+        lon = math.degrees(math.atan2(ey, ex))
+        radius = math.sqrt(ex*ex + ey*ey + z*z)
+        lat = math.degrees(math.atan2(z, math.hypot(ex, ey)))
+        altitude_km = radius - 6378.137
+        try:
+            epoch_year = 2000 + sat.epochyr if sat.epochyr < 57 else 1900 + sat.epochyr
+            epoch = datetime(epoch_year, 1, 1, tzinfo=timezone.utc) + timedelta(days=float(sat.epochdays)-1)
+            age_days = (current-epoch).total_seconds()/86400
+            epoch_text = epoch.isoformat().replace("+00:00", "Z")
+            freshness = "fresh" if age_days <= 3 else "delayed" if age_days <= 14 else "stale"
+        except (ValueError, OverflowError):
+            epoch_text, freshness = None, "unknown"
+        norad = line1[2:7].strip()
+        features.append({
+            "type":"Feature", "id":"celestrak:"+norad,
+            "geometry":{"type":"Point","coordinates":[lon,lat,round(altitude_km*1000)]},
+            "properties":{
+                "entity_type":"satellite","name":name,"provider_id":"celestrak-gp",
+                "source":"CelesTrak GP element set","source_url":"https://celestrak.org/NORAD/elements/",
+                "source_entity_id":norad,"element_epoch":epoch_text,
+                "calculated_at":current.isoformat().replace("+00:00","Z"),"retrieved_at":retrieved,
+                "freshness":freshness,"kind":"derived",
+                "derivation_method":"SGP4 TEME propagation with approximate Earth rotation",
+                "altitude_km":round(altitude_km,2),
+                "position_accuracy_note":"Approximate subpoint; not a precision navigation solution."
+            }
+        })
+        if len(features) >= limit:
+            break
+    return {"type":"FeatureCollection","source":"celestrak-gp","retrieved_at":retrieved,
+            "calculated_at":current.isoformat().replace("+00:00","Z"),"kind":"derived",
+            "count":len(features),"features":features}
