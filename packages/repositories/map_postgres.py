@@ -12,7 +12,7 @@ SELECT feature_id, feature_type, source, source_record_id,
        observation_id, ST_AsGeoJSON(geometry)::jsonb, properties, confidence,
        observed_at, raw_payload_hash, parser_version, license_class, valid_from, valid_to
 FROM map_features
-WHERE lower(concat_ws(' ', feature_type, source, source_record_id, properties::text))
+WHERE lower(coalesce(feature_type, '') || ' ' || coalesce(source, '') || ' ' || coalesce(source_record_id, '') || ' ' || coalesce(properties::text, ''))
       LIKE lower(%s)
 ORDER BY observed_at DESC
 LIMIT %s
