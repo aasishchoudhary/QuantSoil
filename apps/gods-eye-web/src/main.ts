@@ -119,7 +119,7 @@ function recordAircraftAndTrails(features:any[]){
     const image='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><path d="M20 2 L25 15 L36 22 L36 26 L24 23 L23 34 L29 37 L29 39 L20 36 L11 39 L11 37 L17 34 L16 23 L4 26 L4 22 L15 15 Z" fill="#44d9f5" stroke="#061019" stroke-width="1.4"/></svg>');
     let overlay=aircraftOverlays.get(id);
     if(!overlay){
-      const marker=viewer.entities.add({id:"motion:"+id,position:Cartesian3.fromDegrees(Number(coords[0]),Number(coords[1])),billboard:{image,scale:.85,rotation:0,alignedAxis:Cartesian3.UNIT_Z,verticalOrigin:1},label:{text:String(props.callsign||props.name||id),font:"10px sans-serif",fillColor:Color.fromCssColorString("#c9f8ff"),outlineColor:Color.fromCssColorString("#061019"),outlineWidth:3,style:2,pixelOffset:{x:0,y:-18} as any}});
+      const marker=viewer.entities.add({id:"motion:"+id,position:Cartesian3.fromDegrees(Number(coords[0]),Number(coords[1])),properties:{...props,entity_id:id},billboard:{image,scale:.85,rotation:0,alignedAxis:Cartesian3.UNIT_Z,verticalOrigin:1},label:{text:String(props.callsign||props.name||id),font:"10px sans-serif",fillColor:Color.fromCssColorString("#c9f8ff"),outlineColor:Color.fromCssColorString("#061019"),outlineWidth:3,style:2,pixelOffset:{x:0,y:-18} as any}});
       const trailEntity=viewer.entities.add({id:"trail:"+id,polyline:{positions:trail.map(p=>Cartesian3.fromDegrees(p.lon,p.lat)),width:2,material:new ColorMaterialProperty(Color.fromCssColorString("#44d9f5").withAlpha(.55))}});
       overlay={marker,trail:trailEntity};aircraftOverlays.set(id,overlay);
     }else{
@@ -185,8 +185,9 @@ handler.setInputAction((movement:any)=>{
   if(!picked){return;}
   const entity=picked.id;
   if(!entity)return;
-  const id=entity.id;
-  const feature=sourceFeatures.find(f=>String(f.id??f.properties?.id??f.properties?.entity_id)===String(id));
+  const rawId=String(entity.id??"");
+  const id=rawId.startsWith("motion:")?rawId.slice(7):rawId;
+  const feature=sourceFeatures.find(f=>String(f.id??f.properties?.id??f.properties?.entity_id)===id||String(f.properties?.source_entity_id??"")===id.replace(/^adsb:/,""));
   if(feature){showEntity(feature);return;}
   const props=(entity.properties as any)?.toJSON?.()||{};
   if(Object.keys(props).length)showEntity({id,properties:props});
@@ -218,7 +219,7 @@ function paintSource(data:any){
         const feature=sourceFeatures.find(f=>String(f.id??f.properties?.id??f.properties?.entity_id)===String(e.id));
         const kind=category(feature||{properties:(e.properties as any)?.toJSON?.()||{}});
         const color=kind==="aircraft"?Color.fromCssColorString("#44d9f5"):kind==="event"?Color.fromCssColorString("#ffb64d"):kind==="satellite"?Color.fromCssColorString("#b49aff"):Color.fromCssColorString("#a9bac9");
-        if(e.point){e.point.color=new ConstantProperty(color);e.point.pixelSize=new ConstantProperty(7);e.point.outlineColor=new ConstantProperty(Color.fromCssColorString("#061019"));e.point.outlineWidth=new ConstantProperty(1);}
+        if(e.point){e.point.color=new ConstantProperty(color);e.point.pixelSize=new ConstantProperty(7);e.point.outlineColor=new ConstantProperty(Color.fromCssColorString("#061019"));e.point.outlineWidth=new ConstantProperty(1);if(kind==="aircraft")e.show=false;}
         if(e.polyline){e.polyline.material=new ColorMaterialProperty(color.withAlpha(.8));e.polyline.width=new ConstantProperty(2);}
       });
       viewer.dataSources.add(ds);applyLayerVisibility();
