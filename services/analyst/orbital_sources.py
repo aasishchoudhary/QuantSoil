@@ -8,7 +8,7 @@ from urllib.request import Request, urlopen
 from typing import Any
 
 from sgp4.api import Satrec, WGS72, jday
-from sgp4.functions import gstime
+from sgp4.propagation import gstime
 
 CELESTRAK_URL = "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=TLE"
 EARTH_SOURCE_URL = "https://celestrak.org/NORAD/elements/"
