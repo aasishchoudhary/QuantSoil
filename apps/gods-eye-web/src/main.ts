@@ -389,17 +389,31 @@ $<HTMLButtonElement>("#imagery-toggle").addEventListener("click",async()=>{
 $<HTMLButtonElement>("#clear-selection").addEventListener("click",()=>{selected=null;$<HTMLDivElement>("#entity-details").hidden=true;$<HTMLDivElement>("#inspector-empty").hidden=false;$<HTMLSpanElement>("#data-state").textContent="DATA STATE: NO ENTITY SELECTED";});
 $<HTMLButtonElement>("#close-inspector").addEventListener("click",()=>$<HTMLElement>("#inspector").classList.toggle("collapsed"));
 $<HTMLButtonElement>("#toggle-right").addEventListener("click",()=>$<HTMLElement>("#inspector").classList.toggle("collapsed"));
-function runSearch(){
+async function runSearch(){
   const q=$<HTMLInputElement>("#search").value.trim().toLowerCase();
   if(!q)return;
-  const found=sourceFeatures.find(f=>JSON.stringify([f.id,f.properties]).toLowerCase().includes(q));
-  if(!found){message.textContent="No match in the currently loaded viewport. Global search is not configured.";message.classList.remove("hidden");return;}
+  let found=sourceFeatures.find(f=>JSON.stringify([f.id,f.properties]).toLowerCase().includes(q));
+  if(!found){
+    message.textContent="Searching indexed map evidence…";message.classList.remove("hidden");
+    try{
+      const response=await fetch(`${API}/search?q=${encodeURIComponent(q)}&limit=25`,{headers:{Accept:"application/geo+json, application/json"}});
+      if(!response.ok)throw new Error(response.status===404?"Global search endpoint is not deployed yet.":`HTTP ${response.status}`);
+      const data=await response.json();
+      found=featureCollection(data)[0];
+      if(!found){message.textContent="No indexed match found. Try a source, identifier, feature type or property.";return;}
+    }catch(error){
+      message.textContent="Global search unavailable: "+String(error);return;
+    }
+  }
   showEntity(found);
   const coords=found.geometry?.coordinates;
   const point=Array.isArray(coords)&&typeof coords[0]==="number"&&typeof coords[1]==="number"
     ? coords
     : Array.isArray(coords?.[0])&&typeof coords[0][0]==="number" ? coords[0] : null;
-  if(point)viewer.camera.flyTo({destination:Cartesian3.fromDegrees(Number(point[0]),Number(point[1]),Math.max(120000,viewer.camera.positionCartographic.height*.25)),duration:1});
+  if(point){
+    message.classList.add("hidden");
+    viewer.camera.flyTo({destination:Cartesian3.fromDegrees(Number(point[0]),Number(point[1]),Math.max(120000,viewer.camera.positionCartographic.height*.25)),duration:1});
+  }
 }
 $<HTMLButtonElement>("#search-go").addEventListener("click",runSearch);
 $<HTMLInputElement>("#search").addEventListener("keydown",e=>{if(e.key==="Enter")runSearch();});
