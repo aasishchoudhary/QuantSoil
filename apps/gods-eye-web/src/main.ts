@@ -74,6 +74,7 @@ const apiHealth=$<HTMLSpanElement>("#api-health");
 let sourceFeatures:any[]=[];
 let selected:any=null;
 let refreshSeq=0;
+let geoRenderSeq=0;
 let refreshTimer:number|undefined;
 let activeLayers=new Set(["aircraft","satellite","event","other"]);
 let analystSource:GeoJsonDataSource|undefined;
@@ -249,6 +250,7 @@ function featureCollection(data:any):any[]{
   return [];
 }
 function paintSource(data:any){
+  const renderSeq=++geoRenderSeq;
   sourceFeatures=featureCollection(data);
   // Normalize supported API envelopes into a renderable GeoJSON FeatureCollection.
   // Previously, {items:[Feature,...]} updated counters but rendered no map entities.
@@ -258,6 +260,7 @@ function paintSource(data:any){
   if(analystSource){viewer.dataSources.remove(analystSource,true);analystSource=undefined;}
   if(renderPayload.features.length){
     GeoJsonDataSource.load(renderPayload,{clampToGround:false}).then(ds=>{
+      if(renderSeq!==geoRenderSeq)return;
       analystSource=ds;ds.name="quantsoil-analyst";
       ds.entities.values.forEach(e=>{
         const feature=sourceFeatures.find(f=>String(f.id??f.properties?.id??f.properties?.entity_id)===String(e.id));
