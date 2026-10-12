@@ -1,5 +1,5 @@
 import {
-  Viewer, Cartesian2, Cartesian3, CallbackProperty, GeoJsonDataSource, Color, ConstantProperty, ColorMaterialProperty,
+  Viewer, Cartesian2, Cartesian3, CallbackPositionProperty, GeoJsonDataSource, Color, ConstantProperty, ColorMaterialProperty,
   LabelStyle, OpenStreetMapImageryProvider, WebMapTileServiceImageryProvider, EllipsoidTerrainProvider,
   ScreenSpaceEventHandler, ScreenSpaceEventType, VerticalOrigin
 } from "cesium";
@@ -129,7 +129,7 @@ function recordAircraftAndTrails(features:any[]){
     if(!overlay){
       const lon=Number(coords[0]),lat=Number(coords[1]);
       const motion={startLon:lon,startLat:lat,targetLon:lon,targetLat:lat,startedAt:performance.now(),moving:false};
-      const position=new CallbackProperty(()=>{
+      const position=new CallbackPositionProperty(()=>{
         const progress=motion.moving?Math.min(1,(performance.now()-motion.startedAt)/12000):1;
         if(progress>=1)motion.moving=false;
         return Cartesian3.fromDegrees(motion.startLon+(motion.targetLon-motion.startLon)*progress,motion.startLat+(motion.targetLat-motion.startLat)*progress);
