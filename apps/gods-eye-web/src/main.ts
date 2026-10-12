@@ -1,7 +1,7 @@
 import {
   Viewer, Cartesian3, GeoJsonDataSource, Color, ConstantProperty,
   OpenStreetMapImageryProvider, EllipsoidTerrainProvider, ScreenSpaceEventHandler,
-  ScreenSpaceEventType, Cartographic
+  ScreenSpaceEventType
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import "./style.css";
