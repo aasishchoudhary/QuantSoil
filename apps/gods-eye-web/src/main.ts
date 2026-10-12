@@ -82,6 +82,7 @@ let aircraftFeed:CachedFeed={expires:0,features:[]};
 let earthquakeFeed:CachedFeed={expires:0,features:[]};
 const aircraftHistory=new Map<string,Array<{lon:number;lat:number;time:number}>>();
 const aircraftOverlays=new Map<string,{marker:any;trail:any}>();
+const aircraftMotion=new Map<string,{from:{lon:number;lat:number};to:{lon:number;lat:number};started:number;duration:number}>();
 const handler=new ScreenSpaceEventHandler(viewer.scene.canvas);
 
 async function cachedFeed(path:string,ttl:number,cache:CachedFeed):Promise<any[]>{
@@ -111,9 +112,18 @@ function recordAircraftAndTrails(features:any[]){
     seen.add(id);
     const trail=aircraftHistory.get(id)||[];
     const last=trail[trail.length-1];
-    // Record only meaningful position changes; retain a bounded, timestamped path.
-    if(!last||Math.abs(last.lon-Number(coords[0]))>0.00001||Math.abs(last.lat-Number(coords[1]))>0.00001){
-      trail.push({lon:Number(coords[0]),lat:Number(coords[1]),time:now});
+    const nextPoint={lon:Number(coords[0]),lat:Number(coords[1])};
+    // Keep observed positions as a bounded track. Retrieval time is only a fallback
+    // when the provider supplies no interpretable observation timestamp.
+    const observedMs=Date.parse(String(feature.properties?.observed_at||""));
+    const sampleTime=Number.isFinite(observedMs)?observedMs:now;
+    const changed=!last||Math.abs(last.lon-nextPoint.lon)>0.00001||Math.abs(last.lat-nextPoint.lat)>0.00001;
+    if(changed){
+      if(last){
+        const elapsed=Math.max(500,Math.min(8000,sampleTime-last.time||now-last.time));
+        aircraftMotion.set(id,{from:{lon:last.lon,lat:last.lat},to:nextPoint,started:now,duration:elapsed});
+      }
+      trail.push({...nextPoint,time:sampleTime});
       while(trail.length>24)trail.shift();
       aircraftHistory.set(id,trail);
     }
@@ -122,11 +132,11 @@ function recordAircraftAndTrails(features:any[]){
     const image='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><path d="M20 2 L25 15 L36 22 L36 26 L24 23 L23 34 L29 37 L29 39 L20 36 L11 39 L11 37 L17 34 L16 23 L4 26 L4 22 L15 15 Z" fill="#44d9f5" stroke="#061019" stroke-width="1.4"/></svg>');
     let overlay=aircraftOverlays.get(id);
     if(!overlay){
-      const marker=viewer.entities.add({id:"motion:"+id,position:Cartesian3.fromDegrees(Number(coords[0]),Number(coords[1])),properties:{...props,entity_id:id},billboard:{image,scale:.85,rotation:0,alignedAxis:Cartesian3.UNIT_Z,verticalOrigin:VerticalOrigin.BOTTOM},label:{text:String(props.callsign||props.name||id),font:"10px sans-serif",fillColor:Color.fromCssColorString("#c9f8ff"),outlineColor:Color.fromCssColorString("#061019"),outlineWidth:3,style:2,pixelOffset:{x:0,y:-18} as any}});
+      const marker=viewer.entities.add({id:"motion:"+id,position:Cartesian3.fromDegrees(last?.lon??Number(coords[0]),last?.lat??Number(coords[1])),properties:{...props,entity_id:id},billboard:{image,scale:.85,rotation:0,alignedAxis:Cartesian3.UNIT_Z,verticalOrigin:VerticalOrigin.BOTTOM},label:{text:String(props.callsign||props.name||id),font:"10px sans-serif",fillColor:Color.fromCssColorString("#c9f8ff"),outlineColor:Color.fromCssColorString("#061019"),outlineWidth:3,style:2,pixelOffset:{x:0,y:-18} as any}});
       const trailEntity=viewer.entities.add({id:"trail:"+id,polyline:{positions:trail.map(p=>Cartesian3.fromDegrees(p.lon,p.lat)),width:2,material:new ColorMaterialProperty(Color.fromCssColorString("#44d9f5").withAlpha(.55))}});
       overlay={marker,trail:trailEntity};aircraftOverlays.set(id,overlay);
     }else{
-      overlay.marker.position=Cartesian3.fromDegrees(Number(coords[0]),Number(coords[1]));
+      if(!aircraftMotion.has(id))overlay.marker.position=Cartesian3.fromDegrees(Number(coords[0]),Number(coords[1]));
       overlay.marker.billboard.rotation=Number.isFinite(heading)?-heading*Math.PI/180:0;
       overlay.marker.label.text=String(props.callsign||props.name||id);
       overlay.trail.polyline.positions=trail.map(p=>Cartesian3.fromDegrees(p.lon,p.lat));
@@ -208,6 +218,23 @@ handler.setInputAction((movement:any)=>{
   const props=(entity.properties as any)?.toJSON?.()||{};
   if(Object.keys(props).length)showEntity({id,properties:props});
 },ScreenSpaceEventType.LEFT_CLICK);
+
+function animateAircraft(){
+  const now=Date.now();
+  for(const [id,motion] of aircraftMotion){
+    const overlay=aircraftOverlays.get(id);
+    if(!overlay){aircraftMotion.delete(id);continue;}
+    const progress=Math.max(0,Math.min(1,(now-motion.started)/motion.duration));
+    // Ease the short visual transition between two genuine provider observations.
+    const eased=progress*progress*(3-2*progress);
+    const lon=motion.from.lon+(motion.to.lon-motion.from.lon)*eased;
+    const lat=motion.from.lat+(motion.to.lat-motion.from.lat)*eased;
+    overlay.marker.position=Cartesian3.fromDegrees(lon,lat);
+    if(progress>=1)aircraftMotion.delete(id);
+  }
+  window.requestAnimationFrame(animateAircraft);
+}
+window.requestAnimationFrame(animateAircraft);
 
 function bbox():string{
   const rect=viewer.camera.computeViewRectangle(viewer.scene.globe.ellipsoid);
