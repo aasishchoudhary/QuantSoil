@@ -1,7 +1,7 @@
 import {
   Viewer, Cartesian3, GeoJsonDataSource, Color, ConstantProperty, ColorMaterialProperty,
-  OpenStreetMapImageryProvider, EllipsoidTerrainProvider, ScreenSpaceEventHandler,
-  ScreenSpaceEventType
+  OpenStreetMapImageryProvider, WebMapTileServiceImageryProvider, EllipsoidTerrainProvider,
+  ScreenSpaceEventHandler, ScreenSpaceEventType, VerticalOrigin
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import "./style.css";
@@ -33,7 +33,7 @@ app.innerHTML = `
       <div class="left-footer">EVIDENCE FIRST <span>•</span> PROVENANCE ALWAYS</div>
     </aside>
     <section class="map-wrap"><div id="globe"></div>
-      <div class="map-top"><div class="coord-chip"><span class="crosshair">⌖</span><span id="coordinates">LAT — / LON —</span></div><div class="map-buttons"><button id="view-3d" class="active">3D GLOBE</button><button id="view-2d">2D MAP</button></div></div>
+      <div class="map-top"><div class="coord-chip"><span class="crosshair">⌖</span><span id="coordinates">LAT — / LON —</span></div><div class="map-buttons"><button id="view-3d" class="active">3D GLOBE</button><button id="view-2d">2D MAP</button><button id="imagery-toggle" title="Toggle NASA GIBS satellite imagery">SATELLITE</button></div></div>
       <div class="map-bottom-left"><span class="scale-line"></span><span id="altitude">GLOBAL VIEW</span><span class="map-sep">|</span><span id="feature-total">0 FEATURES</span></div>
       <div class="map-bottom-right"><span class="legend-dot cyan-bg"></span> AIRCRAFT <span class="legend-dot amber-bg"></span> EVENTS <span class="legend-dot violet-bg"></span> ORBITAL <span class="legend-dot grey-bg"></span> OTHER</div>
       <div id="map-message" class="map-message">Connecting to governed spatial API…</div>
@@ -59,7 +59,10 @@ const viewer = new Viewer("globe", {
   scene3DOnly:true, requestRenderMode:true, maximumRenderTimeChange:1,
 });
 viewer.imageryLayers.removeAll();
-viewer.imageryLayers.addImageryProvider(new OpenStreetMapImageryProvider({url:"https://tile.openstreetmap.org/"}));
+const osmProvider=new OpenStreetMapImageryProvider({url:"https://tile.openstreetmap.org/"});
+const osmLayer=viewer.imageryLayers.addImageryProvider(osmProvider);
+let satelliteLayer:any=null;
+let satelliteEnabled=false;
 viewer.camera.setView({destination:Cartesian3.fromDegrees(78,23,12500000)});
 viewer.scene.globe.show=true;
 viewer.scene.backgroundColor=Color.fromCssColorString("#05090f");
@@ -119,7 +122,7 @@ function recordAircraftAndTrails(features:any[]){
     const image='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><path d="M20 2 L25 15 L36 22 L36 26 L24 23 L23 34 L29 37 L29 39 L20 36 L11 39 L11 37 L17 34 L16 23 L4 26 L4 22 L15 15 Z" fill="#44d9f5" stroke="#061019" stroke-width="1.4"/></svg>');
     let overlay=aircraftOverlays.get(id);
     if(!overlay){
-      const marker=viewer.entities.add({id:"motion:"+id,position:Cartesian3.fromDegrees(Number(coords[0]),Number(coords[1])),properties:{...props,entity_id:id},billboard:{image,scale:.85,rotation:0,alignedAxis:Cartesian3.UNIT_Z,verticalOrigin:1},label:{text:String(props.callsign||props.name||id),font:"10px sans-serif",fillColor:Color.fromCssColorString("#c9f8ff"),outlineColor:Color.fromCssColorString("#061019"),outlineWidth:3,style:2,pixelOffset:{x:0,y:-18} as any}});
+      const marker=viewer.entities.add({id:"motion:"+id,position:Cartesian3.fromDegrees(Number(coords[0]),Number(coords[1])),properties:{...props,entity_id:id},billboard:{image,scale:.85,rotation:0,alignedAxis:Cartesian3.UNIT_Z,verticalOrigin:VerticalOrigin.BOTTOM},label:{text:String(props.callsign||props.name||id),font:"10px sans-serif",fillColor:Color.fromCssColorString("#c9f8ff"),outlineColor:Color.fromCssColorString("#061019"),outlineWidth:3,style:2,pixelOffset:{x:0,y:-18} as any}});
       const trailEntity=viewer.entities.add({id:"trail:"+id,polyline:{positions:trail.map(p=>Cartesian3.fromDegrees(p.lon,p.lat)),width:2,material:new ColorMaterialProperty(Color.fromCssColorString("#44d9f5").withAlpha(.55))}});
       overlay={marker,trail:trailEntity};aircraftOverlays.set(id,overlay);
     }else{
@@ -283,6 +286,31 @@ $<HTMLButtonElement>("#zoom-in").addEventListener("click",()=>viewer.camera.zoom
 $<HTMLButtonElement>("#zoom-out").addEventListener("click",()=>viewer.camera.zoomOut(viewer.camera.positionCartographic.height*.35));
 $<HTMLButtonElement>("#view-3d").addEventListener("click",()=>{viewer.scene.morphTo3D(.6);$<HTMLElement>("#view-3d").classList.add("active");$<HTMLElement>("#view-2d").classList.remove("active");});
 $<HTMLButtonElement>("#view-2d").addEventListener("click",()=>{viewer.scene.morphTo2D(.6);$<HTMLElement>("#view-2d").classList.add("active");$<HTMLElement>("#view-3d").classList.remove("active");});
+$<HTMLButtonElement>("#imagery-toggle").addEventListener("click",async()=>{
+  const button=$<HTMLButtonElement>("#imagery-toggle");
+  if(satelliteEnabled){
+    if(satelliteLayer)viewer.imageryLayers.remove(satelliteLayer,true);
+    satelliteLayer=null;osmLayer.show=true;satelliteEnabled=false;
+    button.classList.remove("active");
+    button.textContent="SATELLITE";
+    return;
+  }
+  button.disabled=true;button.textContent="LOADING…";
+  try{
+    const productDate=new Date(Date.now()-2*86400000).toISOString().slice(0,10);
+    const provider=new WebMapTileServiceImageryProvider({
+      url:"https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/"+productDate+"/GoogleMapsCompatible_Level9/{TileMatrix}/{TileRow}/{TileCol}.jpg",
+      layer:"VIIRS_SNPP_CorrectedReflectance_TrueColor",style:"default",format:"image/jpeg",
+      tileMatrixSetID:"GoogleMapsCompatible_Level9",maximumLevel:9
+    });
+    satelliteLayer=viewer.imageryLayers.addImageryProvider(provider);
+    osmLayer.show=false;satelliteEnabled=true;
+    button.classList.add("active");button.textContent="SATELLITE ON";
+  }catch(error){
+    message.textContent="Satellite imagery could not be configured: "+String(error);
+    message.classList.remove("hidden");
+  }finally{button.disabled=false;}
+});
 $<HTMLButtonElement>("#clear-selection").addEventListener("click",()=>{selected=null;$<HTMLDivElement>("#entity-details").hidden=true;$<HTMLDivElement>("#inspector-empty").hidden=false;$<HTMLSpanElement>("#data-state").textContent="DATA STATE: NO ENTITY SELECTED";});
 $<HTMLButtonElement>("#close-inspector").addEventListener("click",()=>$<HTMLElement>("#inspector").classList.toggle("collapsed"));
 $<HTMLButtonElement>("#toggle-right").addEventListener("click",()=>$<HTMLElement>("#inspector").classList.toggle("collapsed"));
