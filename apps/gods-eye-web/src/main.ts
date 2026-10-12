@@ -142,9 +142,14 @@ function featureCollection(data:any):any[]{
 }
 function paintSource(data:any){
   sourceFeatures=featureCollection(data);
+  // Normalize supported API envelopes into a renderable GeoJSON FeatureCollection.
+  // Previously, {items:[Feature,...]} updated counters but rendered no map entities.
+  const renderPayload=data?.type==="FeatureCollection"&&Array.isArray(data.features)
+    ? data
+    : {type:"FeatureCollection",features:sourceFeatures.filter((f:any)=>f&&f.type==="Feature"&&f.geometry)};
   if(analystSource){viewer.dataSources.remove(analystSource,true);analystSource=undefined;}
-  if(data?.type==="FeatureCollection"&&Array.isArray(data.features)){
-    GeoJsonDataSource.load(data,{clampToGround:false}).then(ds=>{
+  if(renderPayload.features.length){
+    GeoJsonDataSource.load(renderPayload,{clampToGround:false}).then(ds=>{
       analystSource=ds;ds.name="quantsoil-analyst";
       ds.entities.values.forEach(e=>{
         const feature=sourceFeatures.find(f=>String(f.id??f.properties?.id??f.properties?.entity_id)===String(e.id));
@@ -205,10 +210,13 @@ function runSearch(){
   const q=$<HTMLInputElement>("#search").value.trim().toLowerCase();
   if(!q)return;
   const found=sourceFeatures.find(f=>JSON.stringify([f.id,f.properties]).toLowerCase().includes(q));
-  if(!found){message.textContent="No matching entity in currently loaded viewport data.";message.classList.remove("hidden");return;}
+  if(!found){message.textContent="No match in the currently loaded viewport. Global search is not configured.";message.classList.remove("hidden");return;}
   showEntity(found);
   const coords=found.geometry?.coordinates;
-  if(Array.isArray(coords)&&coords.length>=2)viewer.camera.flyTo({destination:Cartesian3.fromDegrees(Number(coords[0]),Number(coords[1]),Math.max(120000,viewer.camera.positionCartographic.height*.25)),duration:1});
+  const point=Array.isArray(coords)&&typeof coords[0]==="number"&&typeof coords[1]==="number"
+    ? coords
+    : Array.isArray(coords?.[0])&&typeof coords[0][0]==="number" ? coords[0] : null;
+  if(point)viewer.camera.flyTo({destination:Cartesian3.fromDegrees(Number(point[0]),Number(point[1]),Math.max(120000,viewer.camera.positionCartographic.height*.25)),duration:1});
 }
 $<HTMLButtonElement>("#search-go").addEventListener("click",runSearch);
 $<HTMLInputElement>("#search").addEventListener("keydown",e=>{if(e.key==="Enter")runSearch();});
@@ -223,6 +231,14 @@ $<HTMLButtonElement>("#timeline").addEventListener("click",async()=>{
   }catch(e){results.textContent="Timeline unavailable: "+String(e);}
 });
 $<HTMLButtonElement>("#clear-timeline").addEventListener("click",()=>{results.textContent="Historical data appears here when available from the analyst API.";});
+// Update geographic readout from the actual globe point under the pointer.
+handler.setInputAction((movement:any)=>{
+  const cartesian=viewer.camera.pickEllipsoid(movement.endPosition,viewer.scene.globe.ellipsoid);
+  if(!cartesian){$<HTMLElement>("#coordinates").textContent="LAT — / LON —";return;}
+  const cartographic=viewer.scene.globe.ellipsoid.cartesianToCartographic(cartesian);
+  const lat=cartographic.latitude*180/Math.PI,lon=cartographic.longitude*180/Math.PI;
+  $<HTMLElement>("#coordinates").textContent="LAT "+lat.toFixed(4)+"° / LON "+lon.toFixed(4)+"°";
+},ScreenSpaceEventType.MOUSE_MOVE);
 viewer.camera.changed.addEventListener(scheduleRefresh);
 viewer.scene.postRender.addEventListener(()=>{
   const p=viewer.camera.positionCartographic;
@@ -230,4 +246,7 @@ viewer.scene.postRender.addEventListener(()=>{
 });
 window.setInterval(()=>{$<HTMLElement>("#clock").textContent=new Date().toISOString().slice(11,19)+" UTC";},1000);
 viewer.camera.moveEnd.addEventListener(scheduleRefresh);
+// Refresh at a bounded cadence even when the camera is stationary. This queries
+// the configured API; it does not turn static data into a verified live feed.
+window.setInterval(()=>void refreshMap(),30000);
 void refreshMap();
