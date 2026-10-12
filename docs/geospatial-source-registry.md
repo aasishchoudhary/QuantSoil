@@ -7,6 +7,8 @@ This is an initial governance catalogue. Listing a provider does not mean its ad
 - **USGS past-hour earthquakes:** adapter implemented in `services/analyst/public_sources.py`; exposed through `GET /sources/earthquakes` on the analyst API. It is a public feed, not a guarantee of instantaneous detection.
 - **adsb.lol regional aircraft:** adapter implemented in `services/analyst/public_sources.py`; exposed through `GET /sources/aircraft?bbox=minLon,minLat,maxLon,maxLat`. It queries the viewport center with a bounded radius and is subject to volunteer receiver coverage, provider availability and provider limits.
 - **CelesTrak station-group orbital objects:** adapter implemented in `services/analyst/orbital_sources.py`; exposed through `GET /sources/orbital`. TLEs are propagated with SGP4 and converted from TEME to WGS84; resulting positions are derived/predicted, not direct observations.
+- **Optional maritime AIS:** `GET /sources/maritime` consumes an operator-configured HTTPS GeoJSON point feed using `QUANTSOIL_AIS_GEOJSON_URL`; optional bearer token, provider ID and license ID use `QUANTSOIL_AIS_BEARER_TOKEN`, `QUANTSOIL_AIS_PROVIDER_ID`, and `QUANTSOIL_AIS_LICENSE_ID`. No provider is enabled by default.
+- **Authorized camera metadata:** `GET /sources/cameras` consumes an operator-configured HTTPS GeoJSON point feed using `QUANTSOIL_AUTHORIZED_CAMERA_GEOJSON_URL`; optional bearer token, provider ID and license ID use corresponding `QUANTSOIL_AUTHORIZED_CAMERA_*` variables. Metadata only; the endpoint does not proxy, unlock or scrape video streams.
 - **NASA GIBS imagery:** optional browser imagery toggle uses VIIRS corrected-reflectance imagery with a two-day date offset. It is satellite imagery, not street-level aerial photography or live video.
 - **Cesium World Terrain / OSM Buildings:** optional frontend control is available when `VITE_CESIUM_ION_TOKEN` is supplied at build time. Use a public, domain-restricted token with only required asset access; do not commit tokens to source control. This capability is not enabled in builds without the variable.
 - **Global map metadata search:** implemented through `GET /search?q=...` in the analyst API, backed by the PostGIS trigram index on map feature metadata. The in-memory repository supports local/test searches. This searches indexed map projections; it is not a web-wide search engine.
@@ -31,7 +33,11 @@ A route being present does not guarantee network reachability from a particular 
 | Space weather | NOAA SWPC | Solar/geomagnetic products | Product-specific | Show product time; separate forecast from observation |
 | Geocoding | Nominatim or authorized provider | Place lookup | Request-time result, not tracking | Respect usage policy, identify client, cache appropriately |
 
-## Provider request caching\n\nThe analyst API caches successful USGS responses for 60 seconds, CelesTrak orbital propagation results for 60 seconds, and ADS-B viewport responses for 15 seconds per rounded bounding box. Failures are not cached as successful empty data. The in-process cache is bounded and is local to each API process; multi-replica deployments should use a shared cache or provider-specific rate limiting if aggregate request volume requires it.\n\n## Normalized freshness states
+## Provider request caching
+
+The analyst API caches successful USGS responses for 60 seconds, CelesTrak orbital propagation results for 60 seconds, and ADS-B viewport responses for 15 seconds per rounded bounding box. Failures are not cached as successful empty data. The in-process cache is bounded and is local to each API process; multi-replica deployments should use a shared cache or provider-specific rate limiting if aggregate request volume requires it.
+
+## Normalized freshness states
 
 - fresh: within provider-specific documented threshold.
 - delayed: data exceeds preferred threshold.

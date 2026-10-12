@@ -87,6 +87,8 @@ type CachedFeed={expires:number;features:any[];error?:string;key?:string};
 let aircraftFeed:CachedFeed={expires:0,features:[]};
 let earthquakeFeed:CachedFeed={expires:0,features:[]};
 let orbitalFeed:CachedFeed={expires:0,features:[]};
+let vesselFeed:CachedFeed={expires:0,features:[]};
+let cameraFeed:CachedFeed={expires:0,features:[]};
 const aircraftHistory=new Map<string,Array<{lon:number;lat:number;time:number}>>();
 const aircraftOverlays=new Map<string,{marker:any;trail:any;motion:any}>();
 const handler=new ScreenSpaceEventHandler(viewer.scene.canvas);
@@ -298,22 +300,32 @@ async function refreshMap(){
     if(!response.ok)throw new Error(`HTTP ${response.status}`);
     const data=await response.json();analystFeatures=featureCollection(data);
   }catch(error){failures.push("Analyst API: "+String(error));}
-  const [aircraftResult,eventResult,orbitalResult]=await Promise.allSettled([
+  const [aircraftResult,eventResult,orbitalResult,vesselResult,cameraResult]=await Promise.allSettled([
     cachedFeed("/sources/aircraft?bbox="+encodeURIComponent(box),30000,aircraftFeed),
     cachedFeed("/sources/earthquakes",300000,earthquakeFeed),
-    cachedFeed("/sources/orbital",300000,orbitalFeed)
+    cachedFeed("/sources/orbital",300000,orbitalFeed),
+    cachedFeed("/sources/maritime",60000,vesselFeed),
+    cachedFeed("/sources/cameras",60000,cameraFeed)
   ]);
   if(aircraftResult.status==="fulfilled")aircraftFeed.features=aircraftResult.value;else failures.push("Aircraft: "+String(aircraftResult.reason));
   if(eventResult.status==="fulfilled")earthquakeFeed.features=eventResult.value;else failures.push("Earthquakes: "+String(eventResult.reason));
   if(orbitalResult.status==="fulfilled")orbitalFeed.features=orbitalResult.value;else failures.push("Orbital: "+String(orbitalResult.reason));
+  if(vesselResult.status==="fulfilled")vesselFeed.features=vesselResult.value;else if(!String(vesselResult.reason).includes("503"))failures.push("Maritime: "+String(vesselResult.reason));
+  if(cameraResult.status==="fulfilled")cameraFeed.features=cameraResult.value;else if(!String(cameraResult.reason).includes("503"))failures.push("Authorized camera metadata: "+String(cameraResult.reason));
   if(seq!==refreshSeq)return;
-  const combined=[...analystFeatures,...aircraftFeed.features,...earthquakeFeed.features,...orbitalFeed.features];
+  const combined=[...analystFeatures,...aircraftFeed.features,...earthquakeFeed.features,...orbitalFeed.features,...vesselFeed.features,...cameraFeed.features];
   // Deduplicate by stable provider feature ID, preferring the freshest returned copy.
   const byId=new Map<string,any>();
   for(const feature of combined){const id=String(feature?.id??JSON.stringify(feature?.geometry));if(!byId.has(id))byId.set(id,feature);}
   const features=[...byId.values()];
   recordAircraftAndTrails(features);
   paintSource({type:"FeatureCollection",features});
+  $<HTMLElement>("#vessel-status").textContent=vesselResult.status==="fulfilled"
+    ? vesselFeed.features.length+" AIS observations"
+    : String(vesselResult.reason).includes("503")?"No AIS provider configured":"Provider unavailable";
+  $<HTMLElement>("#camera-status").textContent=cameraResult.status==="fulfilled"
+    ? cameraFeed.features.length+" authorized metadata records"
+    : String(cameraResult.reason).includes("503")?"No authorized source configured":"Provider unavailable";
   const partial=failures.length>0;
   status.textContent=partial?(features.length?"PARTIAL SOURCES":"SOURCES UNAVAILABLE"):"PUBLIC SOURCES CONNECTED";
   apiHealth.textContent=partial?"PARTIAL":"ONLINE";
