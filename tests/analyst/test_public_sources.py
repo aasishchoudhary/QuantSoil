@@ -48,9 +48,9 @@ class PublicSourceAdapterTests(unittest.TestCase):
 
     def test_satellite_adapter_returns_explicitly_derived_position(self):
         tle = (
-            "ISS (ZARYA)\\n"
-            "1 25544U 98067A   21275.51005787  .00001490  00000-0  33237-4 0  9993\\n"
-            "2 25544  51.6441 208.2413 0003886  84.7756  34.7952 15.48815329302845\\n"
+            "ISS (ZARYA)\n"
+            "1 25544U 98067A   21275.51005787  .00001490  00000-0  33237-4 0  9993\n"
+            "2 25544  51.6441 208.2413 0003886  84.7756  34.7952 15.48815329302845\n"
         )
         result = satellites(limit=5, fetch_text=lambda _: tle,
                             now=datetime(2021, 10, 2, tzinfo=timezone.utc))
