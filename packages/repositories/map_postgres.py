@@ -7,6 +7,16 @@ _QUERY = """SELECT feature_id, feature_type, source, source_record_id,
     raw_payload_hash, parser_version, license_class, valid_from, valid_to
     FROM map_features_in_bbox(%s,%s,%s,%s,%s,%s)"""
 _TILE = "SELECT map_features_mvt(%s,%s,%s,%s)"
+_SEARCH = r"""
+SELECT feature_id, feature_type, source, source_record_id,
+       observation_id, ST_AsGeoJSON(geometry)::jsonb, properties, confidence,
+       observed_at, raw_payload_hash, parser_version, license_class, valid_from, valid_to
+FROM map_features
+WHERE lower(coalesce(feature_type, '') || ' ' || coalesce(source, '') || ' ' || coalesce(source_record_id, '') || ' ' || coalesce(properties::text, ''))
+      LIKE lower(%s)
+ORDER BY observed_at DESC
+LIMIT %s
+"""
 
 class MapRepositoryError(RuntimeError): pass
 
@@ -20,6 +30,21 @@ class PostgresMapRepository:
                 rows=cursor.fetchall()
         except Exception as exc:
             raise MapRepositoryError("failed to query spatial projection") from exc
+        return tuple(self._row(row) for row in rows)
+
+    def search(self, query: str, limit: int = 50):
+        """Search indexed map metadata; query is parameterized and wildcard-escaped."""
+        if not isinstance(query, str) or not 2 <= len(query.strip()) <= 128:
+            raise ValueError("query must contain 2 to 128 characters")
+        if not 1 <= limit <= 100:
+            raise ValueError("limit must be between 1 and 100")
+        literal = query.strip()
+        try:
+            with self._connection.cursor() as cursor:
+                cursor.execute(_SEARCH, (f"%{literal}%", limit))
+                rows = cursor.fetchall()
+        except Exception as exc:
+            raise MapRepositoryError("failed to search spatial projection") from exc
         return tuple(self._row(row) for row in rows)
 
     def tile(self,z:int,x:int,y:int,at=None)->bytes:

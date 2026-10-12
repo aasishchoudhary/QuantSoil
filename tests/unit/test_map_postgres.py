@@ -15,3 +15,24 @@ def test_map_repository_preserves_provenance():
     assert item.source=="usgs"
     assert item.raw_payload_hash=="a"*64
     assert item.geometry["coordinates"]==[1,2]
+
+class SearchCursor:
+    def __init__(self, parent): self.parent=parent
+    def execute(self, query, params):
+        self.parent.query=query
+        self.parent.params=params
+    def fetchall(self):
+        return [("f1","aircraft","adsb","ABC123",None,{"type":"Point","coordinates":[87,25]},{"callsign":"ABC123"},.8,datetime(2026,1,1,tzinfo=timezone.utc),"b"*64,"p1","public/open",None,None)]
+    def __enter__(self): return self
+    def __exit__(self,*a): pass
+
+class SearchDB:
+    def cursor(self): return SearchCursor(self)
+
+def test_map_repository_global_search_uses_bound_parameters():
+    db=SearchDB()
+    results=PostgresMapRepository(db).search("ABC123", limit=10)
+    assert len(results)==1
+    assert results[0].source_record_id=="ABC123"
+    assert "LIKE lower(%s)" in db.query
+    assert db.params==("%ABC123%",10)
