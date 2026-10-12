@@ -80,6 +80,7 @@ let analystSource:GeoJsonDataSource|undefined;
 type CachedFeed={expires:number;features:any[]};
 let aircraftFeed:CachedFeed={expires:0,features:[]};
 let earthquakeFeed:CachedFeed={expires:0,features:[]};
+let satelliteFeed:CachedFeed={expires:0,features:[]};
 const aircraftHistory=new Map<string,Array<{lon:number;lat:number;time:number}>>();
 const aircraftOverlays=new Map<string,{marker:any;trail:any}>();
 const aircraftMotion=new Map<string,{from:{lon:number;lat:number};to:{lon:number;lat:number};started:number;duration:number}>();
@@ -272,7 +273,7 @@ function paintSource(data:any){
   const counts={aircraft:0,satellite:0,event:0,other:0};
   sourceFeatures.forEach(f=>counts[category(f) as keyof typeof counts]++);
   $<HTMLElement>("#aircraft-status").textContent=counts.aircraft+" features returned";
-  $<HTMLElement>("#satellite-status").textContent=counts.satellite+" features returned";
+  $<HTMLElement>("#satellite-status").textContent=counts.satellite+" propagated / observed";
   $<HTMLElement>("#events-status").textContent=counts.event+" features returned";
   $<HTMLElement>("#other-status").textContent=counts.other+" features returned";
   $<HTMLElement>("#map-message").textContent=sourceFeatures.length?"Spatial observations loaded; timestamps and provider determine freshness.":"No features in this viewport.";
@@ -288,14 +289,16 @@ async function refreshMap(){
     if(!response.ok)throw new Error(`HTTP ${response.status}`);
     const data=await response.json();analystFeatures=featureCollection(data);
   }catch(error){failures.push("Analyst API: "+String(error));}
-  const [aircraftResult,eventResult]=await Promise.allSettled([
+  const [aircraftResult,eventResult,satelliteResult]=await Promise.allSettled([
     cachedFeed("/sources/aircraft?bbox="+encodeURIComponent(box),30000,aircraftFeed),
-    cachedFeed("/sources/earthquakes",300000,earthquakeFeed)
+    cachedFeed("/sources/earthquakes",300000,earthquakeFeed),
+    cachedFeed("/sources/satellites?limit=250",60000,satelliteFeed)
   ]);
   if(aircraftResult.status==="fulfilled")aircraftFeed.features=aircraftResult.value;else failures.push("Aircraft: "+String(aircraftResult.reason));
   if(eventResult.status==="fulfilled")earthquakeFeed.features=eventResult.value;else failures.push("Earthquakes: "+String(eventResult.reason));
+  if(satelliteResult.status==="fulfilled")satelliteFeed.features=satelliteResult.value;else failures.push("Satellites: "+String(satelliteResult.reason));
   if(seq!==refreshSeq)return;
-  const combined=[...analystFeatures,...aircraftFeed.features,...earthquakeFeed.features];
+  const combined=[...analystFeatures,...aircraftFeed.features,...earthquakeFeed.features,...satelliteFeed.features];
   // Deduplicate by stable provider feature ID, preferring the freshest returned copy.
   const byId=new Map<string,any>();
   for(const feature of combined){const id=String(feature?.id??JSON.stringify(feature?.geometry));if(!byId.has(id))byId.set(id,feature);}
