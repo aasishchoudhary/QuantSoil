@@ -7,8 +7,10 @@ This is an initial governance catalogue. Listing a provider does not mean its ad
 - **USGS past-hour earthquakes:** adapter implemented in `services/analyst/public_sources.py`; exposed through `GET /sources/earthquakes` on the analyst API. It is a public feed, not a guarantee of instantaneous detection.
 - **adsb.lol regional aircraft:** adapter implemented in `services/analyst/public_sources.py`; exposed through `GET /sources/aircraft?bbox=minLon,minLat,maxLon,maxLat`. It queries the viewport center with a bounded radius and is subject to volunteer receiver coverage, provider availability and provider limits.
 - **NASA GIBS imagery:** optional browser imagery toggle uses VIIRS corrected-reflectance imagery with a two-day date offset. It is satellite imagery, not street-level aerial photography or live video.
+- **CelesTrak visual satellites:** a source adapter fetches public GP/TLE elements and propagates subpoint estimates using SGP4. These are derived positions, not direct sensor observations; the current transform is approximate and must not be used for precision navigation.
+- **Aircraft track rendering:** the browser keeps a bounded in-memory path of distinct provider positions and animates a short transition between two genuine observations. It is not a predictive flight path or durable historical archive.
 - **Frontend track rendering:** the browser retains a bounded in-memory path for returned aircraft positions and animates a short transition between two distinct provider observations. This is presentation interpolation, not a prediction of future aircraft movement; the path is lost on reload and is not authoritative historical storage.
-- **Not implemented by this change:** orbital propagation, maritime AIS, CCTV, traffic feeds, real-time 3D terrain/buildings, a global entity search service, or a persistent backend history store for aircraft positions.
+- **Still not implemented:** maritime AIS, CCTV, traffic feeds, photorealistic real-time 3D terrain/buildings, a global entity search service, and a persistent backend history store for aircraft positions.
 
 A route being present does not guarantee network reachability from a particular deployment. Provider failures return explicit errors and the UI should continue to identify unavailable sources rather than inventing data.
 
