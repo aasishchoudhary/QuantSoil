@@ -74,7 +74,70 @@ let refreshSeq=0;
 let refreshTimer:number|undefined;
 let activeLayers=new Set(["aircraft","satellite","event","other"]);
 let analystSource:GeoJsonDataSource|undefined;
+type CachedFeed={expires:number;features:any[]};
+let aircraftFeed:CachedFeed={expires:0,features:[]};
+let earthquakeFeed:CachedFeed={expires:0,features:[]};
+const aircraftHistory=new Map<string,Array<{lon:number;lat:number;time:number}>>();
+const aircraftOverlays=new Map<string,{marker:any;trail:any}>();
 const handler=new ScreenSpaceEventHandler(viewer.scene.canvas);
+
+async function cachedFeed(path:string,ttl:number,cache:CachedFeed):Promise<any[]>{
+  if(Date.now()<cache.expires)return cache.features;
+  try{
+    const response=await fetch(API+path,{headers:{Accept:"application/geo+json, application/json"}});
+    if(!response.ok)throw new Error("HTTP "+response.status);
+    const payload=await response.json();
+    cache.features=Array.isArray(payload.features)?payload.features:[];
+    cache.expires=Date.now()+ttl;
+    return cache.features;
+  }catch(error){
+    // Short negative cache prevents camera movement from hammering an unavailable provider.
+    cache.expires=Date.now()+60000;
+    throw error;
+  }
+}
+function recordAircraftAndTrails(features:any[]){
+  const now=Date.now();
+  const seen=new Set<string>();
+  for(const feature of features){
+    if(category(feature)!=="aircraft")continue;
+    const coords=feature.geometry?.coordinates;
+    if(!Array.isArray(coords)||!Number.isFinite(Number(coords[0]))||!Number.isFinite(Number(coords[1])))continue;
+    const id=String(feature.id??feature.properties?.source_entity_id??feature.properties?.entity_id??"");
+    if(!id)continue;
+    seen.add(id);
+    const trail=aircraftHistory.get(id)||[];
+    const last=trail[trail.length-1];
+    // Record only meaningful position changes; retain a bounded, timestamped path.
+    if(!last||Math.abs(last.lon-Number(coords[0]))>0.00001||Math.abs(last.lat-Number(coords[1]))>0.00001){
+      trail.push({lon:Number(coords[0]),lat:Number(coords[1]),time:now});
+      while(trail.length>24)trail.shift();
+      aircraftHistory.set(id,trail);
+    }
+    const props=feature.properties||{};
+    const heading=Number(props.track_deg);
+    const image='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><path d="M20 2 L25 15 L36 22 L36 26 L24 23 L23 34 L29 37 L29 39 L20 36 L11 39 L11 37 L17 34 L16 23 L4 26 L4 22 L15 15 Z" fill="#44d9f5" stroke="#061019" stroke-width="1.4"/></svg>');
+    let overlay=aircraftOverlays.get(id);
+    if(!overlay){
+      const marker=viewer.entities.add({id:"motion:"+id,position:Cartesian3.fromDegrees(Number(coords[0]),Number(coords[1])),billboard:{image,scale:.85,rotation:0,alignedAxis:Cartesian3.UNIT_Z,verticalOrigin:1},label:{text:String(props.callsign||props.name||id),font:"10px sans-serif",fillColor:Color.fromCssColorString("#c9f8ff"),outlineColor:Color.fromCssColorString("#061019"),outlineWidth:3,style:2,pixelOffset:{x:0,y:-18} as any}});
+      const trailEntity=viewer.entities.add({id:"trail:"+id,polyline:{positions:trail.map(p=>Cartesian3.fromDegrees(p.lon,p.lat)),width:2,material:new ColorMaterialProperty(Color.fromCssColorString("#44d9f5").withAlpha(.55))}});
+      overlay={marker,trail:trailEntity};aircraftOverlays.set(id,overlay);
+    }else{
+      overlay.marker.position=Cartesian3.fromDegrees(Number(coords[0]),Number(coords[1]));
+      overlay.marker.billboard.rotation=Number.isFinite(heading)?-heading*Math.PI/180:0;
+      overlay.marker.label.text=String(props.callsign||props.name||id);
+      overlay.trail.polyline.positions=trail.map(p=>Cartesian3.fromDegrees(p.lon,p.lat));
+    }
+    overlay.marker.show=activeLayers.has("aircraft");
+    overlay.trail.show=activeLayers.has("aircraft")&&trail.length>1;
+  }
+  // Keep prior tracks visible through temporary provider gaps; do not fabricate motion.
+  for(const [id,overlay] of aircraftOverlays){
+    overlay.marker.show=activeLayers.has("aircraft");
+    const trail=aircraftHistory.get(id)||[];
+    overlay.trail.show=activeLayers.has("aircraft")&&trail.length>1;
+  }
+}
 
 function category(feature:any):string {
   const p=feature?.properties||{};
@@ -174,27 +237,43 @@ function paintSource(data:any){
 async function refreshMap(){
   const seq=++refreshSeq;const box=bbox();if(!box)return;
   status.textContent="REQUESTING SPATIAL DATA";apiHealth.textContent="CHECKING";
+  const failures:string[]=[];
+  let analystFeatures:any[]=[];
   try{
     const response=await fetch(`${API}/spatial?bbox=${encodeURIComponent(box)}&limit=500`,{headers:{Accept:"application/geo+json, application/json"}});
     if(!response.ok)throw new Error(`HTTP ${response.status}`);
-    const data=await response.json();if(seq!==refreshSeq)return;
-    paintSource(data);status.textContent="API RESPONDING";apiHealth.textContent="ONLINE";
-    $<HTMLElement>("#source-health").querySelector(".health-dot")?.classList.remove("idle");
-    $<HTMLElement>("#last-check").textContent=new Date().toISOString().slice(11,19)+"Z";
-    $<HTMLElement>("#data-state").textContent="DATA STATE: API RESPONDING · FEED FRESHNESS NOT ASSUMED";
-    message.classList.toggle("hidden",sourceFeatures.length>0);
-  }catch(error){
-    if(seq!==refreshSeq)return;
-    status.textContent="SOURCE UNAVAILABLE";apiHealth.textContent="OFFLINE";
-    $<HTMLElement>("#last-check").textContent=new Date().toISOString().slice(11,19)+"Z";
-    message.textContent="Spatial API unavailable. No synthetic live tracks are displayed.";
+    const data=await response.json();analystFeatures=featureCollection(data);
+  }catch(error){failures.push("Analyst API: "+String(error));}
+  const [aircraftResult,eventResult]=await Promise.allSettled([
+    cachedFeed("/sources/aircraft?bbox="+encodeURIComponent(box),30000,aircraftFeed),
+    cachedFeed("/sources/earthquakes",300000,earthquakeFeed)
+  ]);
+  if(aircraftResult.status==="fulfilled")aircraftFeed.features=aircraftResult.value;else failures.push("Aircraft: "+String(aircraftResult.reason));
+  if(eventResult.status==="fulfilled")earthquakeFeed.features=eventResult.value;else failures.push("Earthquakes: "+String(eventResult.reason));
+  if(seq!==refreshSeq)return;
+  const combined=[...analystFeatures,...aircraftFeed.features,...earthquakeFeed.features];
+  // Deduplicate by stable provider feature ID, preferring the freshest returned copy.
+  const byId=new Map<string,any>();
+  for(const feature of combined){const id=String(feature?.id??JSON.stringify(feature?.geometry));if(!byId.has(id))byId.set(id,feature);}
+  const features=[...byId.values()];
+  recordAircraftAndTrails(features);
+  paintSource({type:"FeatureCollection",features});
+  const partial=failures.length>0;
+  status.textContent=partial?(features.length?"PARTIAL SOURCES":"SOURCES UNAVAILABLE"):"PUBLIC SOURCES CONNECTED";
+  apiHealth.textContent=partial?"PARTIAL":"ONLINE";
+  $<HTMLElement>("#source-health").querySelector(".health-dot")?.classList.toggle("idle",partial);
+  $<HTMLElement>("#last-check").textContent=new Date().toISOString().slice(11,19)+"Z";
+  $<HTMLElement>("#data-state").textContent=partial
+    ?"DATA STATE: PARTIAL SOURCES · "+failures.length+" SOURCE(S) UNAVAILABLE"
+    :"DATA STATE: PROVIDERS RESPONDING · OBSERVATION FRESHNESS SHOWN PER ENTITY";
+  if(features.length===0){
+    message.textContent=failures.length?"No observations loaded. "+failures.join(" · "):"No observations returned for this viewport.";
     message.classList.remove("hidden");
-    $<HTMLElement>("#data-state").textContent="DATA STATE: SOURCE UNAVAILABLE";
-  }
+  }else message.classList.add("hidden");
 }
 function scheduleRefresh(){window.clearTimeout(refreshTimer);refreshTimer=window.setTimeout(()=>void refreshMap(),450);}
 document.querySelectorAll<HTMLInputElement>("[data-layer]").forEach(input=>input.addEventListener("change",()=>{
-  const kind=input.dataset.layer!;if(input.checked)activeLayers.add(kind);else activeLayers.delete(kind);applyLayerVisibility();
+  const kind=input.dataset.layer!;if(input.checked)activeLayers.add(kind);else activeLayers.delete(kind);applyLayerVisibility();if(kind==="aircraft")for(const overlay of aircraftOverlays.values()){overlay.marker.show=input.checked;overlay.trail.show=input.checked&&(aircraftHistory.get(String(overlay.marker.id).replace("motion:",""))||[]).length>1;}
 }));
 $<HTMLButtonElement>("#refresh").addEventListener("click",()=>void refreshMap());
 $<HTMLButtonElement>("#home").addEventListener("click",()=>viewer.camera.flyTo({destination:Cartesian3.fromDegrees(78,23,12500000),duration:.8}));
