@@ -1,6 +1,6 @@
 import {
   Viewer, Cartesian2, Cartesian3, CallbackPositionProperty, GeoJsonDataSource, Color, ConstantProperty, ColorMaterialProperty,
-  LabelStyle, OpenStreetMapImageryProvider, WebMapTileServiceImageryProvider, EllipsoidTerrainProvider,
+  LabelStyle, Ion, createWorldTerrainAsync, createOsmBuildingsAsync, OpenStreetMapImageryProvider, WebMapTileServiceImageryProvider, EllipsoidTerrainProvider,
   ScreenSpaceEventHandler, ScreenSpaceEventType, VerticalOrigin
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
@@ -29,7 +29,7 @@ app.innerHTML = `
         <label class="layer-row"><span class="layer-icon green">⌖</span><span class="layer-copy"><b>Other spatial evidence</b><small id="other-status">Waiting for source</small></span><input type="checkbox" data-layer="other" checked/><i></i></label>
       </div>
       <div class="section-label">MAP CONTROLS</div>
-      <div class="control-list"><button id="zoom-in"><span>＋</span> Zoom in</button><button id="zoom-out"><span>－</span> Zoom out</button><button id="camera-reset"><span>◎</span> Reset global view</button><button id="clear-selection"><span>×</span> Clear selection</button></div>
+      <div class="control-list"><button id="zoom-in"><span>＋</span> Zoom in</button><button id="zoom-out"><span>－</span> Zoom out</button><button id="camera-reset"><span>◎</span> Reset global view</button><button id="terrain-toggle"><span>△</span> 3D terrain / buildings</button><button id="clear-selection"><span>×</span> Clear selection</button></div>
       <div class="section-label">SOURCE HEALTH</div>
       <div id="source-health" class="health-card"><div><span class="health-dot idle"></span><b>Analyst API</b><span id="api-health" class="health-state">CHECKING</span></div><p>Layer data is queried from the configured QuantSoil analyst API. No feed is assumed live without source timestamps.</p><div class="health-foot"><span>LAST CHECK</span><span id="last-check">—</span></div></div>
       <div class="left-footer">EVIDENCE FIRST <span>•</span> PROVENANCE ALWAYS</div>
@@ -63,6 +63,10 @@ const viewer = new Viewer("globe", {
 viewer.imageryLayers.removeAll();
 const osmProvider=new OpenStreetMapImageryProvider({url:"https://tile.openstreetmap.org/"});
 const osmLayer=viewer.imageryLayers.addImageryProvider(osmProvider);
+const flatTerrain=new EllipsoidTerrainProvider();
+let worldTerrain:any=null;
+let buildingsPrimitive:any=null;
+let terrainEnabled=false;
 let satelliteLayer:any=null;
 let satelliteEnabled=false;
 viewer.camera.setView({destination:Cartesian3.fromDegrees(78,23,12500000)});
@@ -321,6 +325,34 @@ document.querySelectorAll<HTMLInputElement>("[data-layer]").forEach(input=>input
 $<HTMLButtonElement>("#refresh").addEventListener("click",()=>void refreshMap());
 $<HTMLButtonElement>("#home").addEventListener("click",()=>viewer.camera.flyTo({destination:Cartesian3.fromDegrees(78,23,12500000),duration:.8}));
 $<HTMLButtonElement>("#camera-reset").addEventListener("click",()=>viewer.camera.flyTo({destination:Cartesian3.fromDegrees(78,23,12500000),duration:.8}));
+$<HTMLButtonElement>("#terrain-toggle").addEventListener("click",async()=>{
+  const button=$<HTMLButtonElement>("#terrain-toggle");
+  const token=String(import.meta.env.VITE_CESIUM_ION_TOKEN||"").trim();
+  if(!token){
+    message.textContent="3D terrain/buildings need VITE_CESIUM_ION_TOKEN configured at build time. Use a domain-restricted public token with only the required Cesium assets.";
+    message.classList.remove("hidden");return;
+  }
+  if(terrainEnabled){
+    viewer.terrainProvider=flatTerrain;
+    if(buildingsPrimitive)buildingsPrimitive.show=false;
+    terrainEnabled=false;button.classList.remove("active");button.textContent="3D TERRAIN";
+    return;
+  }
+  button.disabled=true;button.textContent="LOADING TERRAIN…";
+  try{
+    Ion.defaultAccessToken=token;
+    const [terrain,buildings]=await Promise.all([createWorldTerrainAsync(),createOsmBuildingsAsync()]);
+    worldTerrain=terrain;buildingsPrimitive=buildings;
+    viewer.terrainProvider=worldTerrain;
+    buildingsPrimitive.show=true;viewer.scene.primitives.add(buildingsPrimitive);
+    viewer.scene.globe.depthTestAgainstTerrain=true;
+    terrainEnabled=true;button.classList.add("active");button.textContent="3D TERRAIN ON";
+    message.classList.add("hidden");
+  }catch(error){
+    message.textContent="Cesium terrain/buildings could not be loaded. Check token restrictions and asset access: "+String(error);
+    message.classList.remove("hidden");
+  }finally{button.disabled=false;if(!terrainEnabled)button.textContent="3D TERRAIN";}
+});
 $<HTMLButtonElement>("#zoom-in").addEventListener("click",()=>viewer.camera.zoomIn(viewer.camera.positionCartographic.height*.35));
 $<HTMLButtonElement>("#zoom-out").addEventListener("click",()=>viewer.camera.zoomOut(viewer.camera.positionCartographic.height*.35));
 $<HTMLButtonElement>("#view-3d").addEventListener("click",()=>{viewer.scene.morphTo3D(.6);$<HTMLElement>("#view-3d").classList.add("active");$<HTMLElement>("#view-2d").classList.remove("active");});
