@@ -79,7 +79,7 @@ let refreshSeq=0;
 let refreshTimer:number|undefined;
 let activeLayers=new Set(["aircraft","satellite","event","vessel","camera","other"]);
 let analystSource:GeoJsonDataSource|undefined;
-type CachedFeed={expires:number;features:any[]};
+type CachedFeed={expires:number;features:any[];error?:string};
 let aircraftFeed:CachedFeed={expires:0,features:[]};
 let earthquakeFeed:CachedFeed={expires:0,features:[]};
 let orbitalFeed:CachedFeed={expires:0,features:[]};
@@ -88,16 +88,18 @@ const aircraftOverlays=new Map<string,{marker:any;trail:any}>();
 const handler=new ScreenSpaceEventHandler(viewer.scene.canvas);
 
 async function cachedFeed(path:string,ttl:number,cache:CachedFeed):Promise<any[]>{
-  if(Date.now()<cache.expires)return cache.features;
+  if(Date.now()<cache.expires){if(cache.error)throw new Error(cache.error);return cache.features;}
   try{
     const response=await fetch(API+path,{headers:{Accept:"application/geo+json, application/json"}});
     if(!response.ok)throw new Error("HTTP "+response.status);
     const payload=await response.json();
     cache.features=Array.isArray(payload.features)?payload.features:[];
+    cache.error=undefined;
     cache.expires=Date.now()+ttl;
     return cache.features;
   }catch(error){
     // Short negative cache prevents camera movement from hammering an unavailable provider.
+    cache.error=String(error);
     cache.expires=Date.now()+60000;
     throw error;
   }
