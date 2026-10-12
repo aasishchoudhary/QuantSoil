@@ -173,6 +173,12 @@ function safeText(value:any):string {
   return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]!));
 }
 function featureProps(feature:any):Record<string,any>{return feature?.properties||{};}
+function safeHttpUrl(value:any):string|undefined{
+  try{
+    const url=new URL(String(value),window.location.origin);
+    return url.protocol==="https:"||url.protocol==="http:"?safeText(url.href):undefined;
+  }catch{return undefined;}
+}
 function updateCoordinates(position:any){
   const cartesian=viewer.camera.pickEllipsoid(position,viewer.scene.globe.ellipsoid);
   if(!cartesian){$<HTMLElement>("#coordinates").textContent="LAT — / LON —";return;}
@@ -205,7 +211,8 @@ function showEntity(feature:any){
   $<HTMLDivElement>("#inspector-empty").hidden=true;
   const details=$<HTMLDivElement>("#entity-details");details.hidden=false;
   const entries=Object.entries(p).filter(([k])=>!["geometry","bbox"].includes(k)).slice(0,24);
-  details.innerHTML=`<div class="entity-type"><span class="layer-icon ${kind==="aircraft"?"cyan":kind==="event"?"amber":kind==="satellite"?"violet":"green"}">${kind==="aircraft"?"✈":kind==="event"?"⌁":kind==="satellite"?"◉":"⌖"}</span><span>${safeText(kind.toUpperCase())}</span><span class="freshness">${safeText(p.freshness||"FRESHNESS UNKNOWN")}</span></div><h2 class="entity-title">${safeText(name)}</h2><div class="entity-id">${safeText(id)}</div><div class="section-label">OBSERVATION PROPERTIES</div><div class="property-grid">${entries.map(([k,v])=>`<div class="property"><small>${safeText(k.replace(/_/g," ").toUpperCase())}</small><b>${safeText(propValue(v))}</b></div>`).join("")}</div><div class="evidence-box"><div class="evidence-title">PROVENANCE</div><div>Source: ${safeText(p.provider_id||p.source||"Not supplied")}</div><div>Observed: ${safeText(p.observed_at||p.timestamp||"Unknown")}</div><div>Evidence ref: ${safeText(p.evidence_id||p.evidence_ref||"Not supplied")}</div>${p.source_url?'<a href="'+safeText(p.source_url)+'" target="_blank" rel="noopener noreferrer">OPEN SOURCE ↗</a>':""}</div>`;
+  const sourceLink=safeHttpUrl(p.source_url);
+  details.innerHTML=`<div class="entity-type"><span class="layer-icon ${kind==="aircraft"?"cyan":kind==="event"?"amber":kind==="satellite"?"violet":"green"}">${kind==="aircraft"?"✈":kind==="event"?"⌁":kind==="satellite"?"◉":"⌖"}</span><span>${safeText(kind.toUpperCase())}</span><span class="freshness">${safeText(p.freshness||"FRESHNESS UNKNOWN")}</span></div><h2 class="entity-title">${safeText(name)}</h2><div class="entity-id">${safeText(id)}</div><div class="section-label">OBSERVATION PROPERTIES</div><div class="property-grid">${entries.map(([k,v])=>`<div class="property"><small>${safeText(k.replace(/_/g," ").toUpperCase())}</small><b>${safeText(propValue(v))}</b></div>`).join("")}</div><div class="evidence-box"><div class="evidence-title">PROVENANCE</div><div>Source: ${safeText(p.provider_id||p.source||"Not supplied")}</div><div>Observed: ${safeText(p.observed_at||p.timestamp||"Unknown")}</div><div>Evidence ref: ${safeText(p.evidence_id||p.evidence_ref||"Not supplied")}</div>${sourceLink?'<a href="'+sourceLink+'" target="_blank" rel="noopener noreferrer">OPEN SOURCE ↗</a>':""}</div>`;
   $<HTMLInputElement>("#entity-id").value=String(id);
   $<HTMLSpanElement>("#data-state").textContent="DATA STATE: ENTITY SELECTED";
 }
