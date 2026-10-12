@@ -1,5 +1,5 @@
 import {
-  Viewer, Cartesian3, GeoJsonDataSource, Color, ConstantProperty,
+  Viewer, Cartesian3, GeoJsonDataSource, Color, ConstantProperty, ColorMaterialProperty,
   OpenStreetMapImageryProvider, EllipsoidTerrainProvider, ScreenSpaceEventHandler,
   ScreenSpaceEventType
 } from "cesium";
@@ -151,7 +151,7 @@ function paintSource(data:any){
         const kind=category(feature||{properties:(e.properties as any)?.toJSON?.()||{}});
         const color=kind==="aircraft"?Color.fromCssColorString("#44d9f5"):kind==="event"?Color.fromCssColorString("#ffb64d"):kind==="satellite"?Color.fromCssColorString("#b49aff"):Color.fromCssColorString("#a9bac9");
         if(e.point){e.point.color=new ConstantProperty(color);e.point.pixelSize=new ConstantProperty(7);e.point.outlineColor=new ConstantProperty(Color.fromCssColorString("#061019"));e.point.outlineWidth=new ConstantProperty(1);}
-        if(e.polyline){e.polyline.material=new ConstantProperty(color.withAlpha(.8));e.polyline.width=new ConstantProperty(2);}
+        if(e.polyline){e.polyline.material=new ColorMaterialProperty(color.withAlpha(.8));e.polyline.width=new ConstantProperty(2);}
       });
       viewer.dataSources.add(ds);applyLayerVisibility();
     }).catch(()=>{message.textContent="Map payload could not be rendered.";});
