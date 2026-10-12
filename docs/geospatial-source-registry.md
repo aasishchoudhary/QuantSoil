@@ -1,0 +1,50 @@
+# QuantSoil Public Geospatial Source Registry
+
+This is an initial governance catalogue. Listing a provider does not mean its adapter is implemented, enabled, continuously available or production-approved. Verify current terms and endpoint limits before enabling connectors.
+
+| Layer | Candidate source | Data type | Freshness semantics | Safeguards |
+|---|---|---|---|---|
+| Aircraft | adsb.lol | ADS-B reports | Source observation time; receiver coverage varies | Respect limits; expose stale/coverage state |
+| Aircraft | ADS-B Exchange API | Flight state/history where authorized | Provider timestamp | Terms, key secrecy, attribution and quota |
+| Satellites | CelesTrak GP/OMM | Orbital elements | Element epoch; propagated position is derived | Use modern OMM/JSON for six-digit catalog IDs; label propagation |
+| Earthquakes | USGS GeoJSON | Seismic reports | Origin and update times | Preserve event ID, revision and source URL |
+| Weather | Open-Meteo | Forecasts/available observations | Model/forecast time differs from retrieval time | Attribute and obey applicable terms/limits |
+| Satellite imagery | NASA GIBS | Imagery layers | Product/acquisition time, not assumed live | Preserve product metadata, projection and attribution |
+| Fire/hotspots | NASA FIRMS | Satellite detections | Satellite observation time | Key where required, terms, confidence and acquisition time |
+| Base map | OpenStreetMap | Roads/geographic features | Dataset/tile-specific; not live traffic | Attribution, tile policy, no bulk scraping |
+| Maritime | Authorized AIS provider | Vessel AIS reports | Report/reception time; coverage varies | License, quota and no universal-coverage claims |
+| Cameras | Official/authorized feeds | Public camera metadata/video | Provider-specific | No access-control bypass; privacy and terms |
+| Traffic | Official traffic feeds | Observed conditions | Provider update time | Separate observations from static roads/simulation |
+| Weather hazards | Official weather/disaster feeds | Alerts/radar/warnings | Issue time, valid period, update time | Preserve validity; avoid stale alerts |
+| Space weather | NOAA SWPC | Solar/geomagnetic products | Product-specific | Show product time; separate forecast from observation |
+| Geocoding | Nominatim or authorized provider | Place lookup | Request-time result, not tracking | Respect usage policy, identify client, cache appropriately |
+
+## Normalized freshness states
+
+- fresh: within provider-specific documented threshold.
+- delayed: data exceeds preferred threshold.
+- stale: data exceeds hard maximum age.
+- unknown: source timestamp missing or uninterpretable.
+- unavailable: request failed or provider unreachable.
+- simulated: generated fixture/demo data, never presented as live observation.
+
+Thresholds must be provider/layer-specific and tested; do not use a universal duration across aircraft, forecasts, satellite elements, imagery and earthquakes.
+
+## Minimum observation fields
+
+observation_id, provider_id, entity_type, source_entity_id, geometry, observed_at, retrieved_at, source_url, license_id, content_hash, quality_flags, provenance_refs and schema_version.
+
+For derived positions also record derivation_method, input_observation_ids, algorithm_version, calculated_at and uncertainty where quantifiable.
+
+## Source review checklist
+
+- [ ] Official documentation and current terms reviewed
+- [ ] Access method/authentication recorded
+- [ ] Rate limit, cache and retry policy documented
+- [ ] Source timestamp semantics confirmed
+- [ ] Attribution/redistribution conditions recorded
+- [ ] Fixture captured without secrets or prohibited personal data
+- [ ] Parser, contract and failure tests pass
+- [ ] Health metrics and stale state visible
+- [ ] Retention/deletion policy reviewed
+- [ ] Security and lawful-use review completed
