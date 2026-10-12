@@ -31,7 +31,7 @@ A route being present does not guarantee network reachability from a particular 
 | Space weather | NOAA SWPC | Solar/geomagnetic products | Product-specific | Show product time; separate forecast from observation |
 | Geocoding | Nominatim or authorized provider | Place lookup | Request-time result, not tracking | Respect usage policy, identify client, cache appropriately |
 
-## Normalized freshness states
+## Provider request caching\n\nThe analyst API caches successful USGS responses for 60 seconds, CelesTrak orbital propagation results for 60 seconds, and ADS-B viewport responses for 15 seconds per rounded bounding box. Failures are not cached as successful empty data. The in-process cache is bounded and is local to each API process; multi-replica deployments should use a shared cache or provider-specific rate limiting if aggregate request volume requires it.\n\n## Normalized freshness states
 
 - fresh: within provider-specific documented threshold.
 - delayed: data exceeds preferred threshold.
