@@ -13,7 +13,7 @@ app.innerHTML = `
   <header class="topbar">
     <div class="brand"><div class="brand-mark">Q</div><div><b>QUANTSOIL</b><small>WORLD INTELLIGENCE SYSTEM</small></div></div>
     <div class="top-center"><span class="pulse"></span><span id="connection">INITIALIZING SOURCES</span><span class="top-divider"></span><span id="clock">--:--:-- UTC</span></div>
-    <div class="top-actions"><button id="refresh" title="Refresh source data">↻ <span>REFRESH</span></button><button id="home" title="Reset globe camera">⌂</button><button id="toggle-right" title="Toggle inspector">▤</button></div>
+    <div class="top-actions"><button id="refresh" title="Refresh source data">↻ <span>REFRESH</span></button><button id="toggle-left" title="Toggle layer panel" aria-label="Toggle layer panel">☰</button><button id="home" title="Reset globe camera">⌂</button><button id="toggle-right" title="Toggle inspector">▤</button></div>
   </header>
   <div class="workspace">
     <aside class="left-panel">
@@ -83,7 +83,7 @@ let refreshSeq=0;
 let refreshTimer:number|undefined;
 let activeLayers=new Set(["aircraft","satellite","event","vessel","camera","other"]);
 let analystSource:GeoJsonDataSource|undefined;
-type CachedFeed={expires:number;features:any[];error?:string};
+type CachedFeed={expires:number;features:any[];error?:string;key?:string};
 let aircraftFeed:CachedFeed={expires:0,features:[]};
 let earthquakeFeed:CachedFeed={expires:0,features:[]};
 let orbitalFeed:CachedFeed={expires:0,features:[]};
@@ -92,18 +92,20 @@ const aircraftOverlays=new Map<string,{marker:any;trail:any;motion:any}>();
 const handler=new ScreenSpaceEventHandler(viewer.scene.canvas);
 
 async function cachedFeed(path:string,ttl:number,cache:CachedFeed):Promise<any[]>{
-  if(Date.now()<cache.expires){if(cache.error)throw new Error(cache.error);return cache.features;}
+  if(Date.now()<cache.expires&&cache.key===path){if(cache.error)throw new Error(cache.error);return cache.features;}
   try{
     const response=await fetch(API+path,{headers:{Accept:"application/geo+json, application/json"}});
     if(!response.ok)throw new Error("HTTP "+response.status);
     const payload=await response.json();
     cache.features=Array.isArray(payload.features)?payload.features:[];
     cache.error=undefined;
+    cache.key=path;
     cache.expires=Date.now()+ttl;
     return cache.features;
   }catch(error){
     // Short negative cache prevents camera movement from hammering an unavailable provider.
     cache.error=String(error);
+    cache.key=path;
     cache.expires=Date.now()+60000;
     throw error;
   }
@@ -387,6 +389,11 @@ $<HTMLButtonElement>("#imagery-toggle").addEventListener("click",async()=>{
   }finally{button.disabled=false;}
 });
 $<HTMLButtonElement>("#clear-selection").addEventListener("click",()=>{selected=null;$<HTMLDivElement>("#entity-details").hidden=true;$<HTMLDivElement>("#inspector-empty").hidden=false;$<HTMLSpanElement>("#data-state").textContent="DATA STATE: NO ENTITY SELECTED";});
+$<HTMLButtonElement>("#toggle-left").addEventListener("click",()=>{
+  $<HTMLElement>(".left-panel").classList.toggle("collapsed");
+  $<HTMLElement>(".workspace").classList.toggle("left-collapsed");
+  window.setTimeout(()=>viewer.resize(),180);
+});
 $<HTMLButtonElement>("#close-inspector").addEventListener("click",()=>$<HTMLElement>("#inspector").classList.toggle("collapsed"));
 $<HTMLButtonElement>("#toggle-right").addEventListener("click",()=>$<HTMLElement>("#inspector").classList.toggle("collapsed"));
 async function runSearch(){
@@ -430,7 +437,6 @@ $<HTMLButtonElement>("#timeline").addEventListener("click",async()=>{
 $<HTMLButtonElement>("#clear-timeline").addEventListener("click",()=>{results.textContent="Historical data appears here when available from the analyst API.";});
 // Update geographic readout from the actual globe point under the pointer.
 handler.setInputAction((movement:any)=>updateCoordinates(movement.endPosition),ScreenSpaceEventType.MOUSE_MOVE);
-viewer.camera.changed.addEventListener(scheduleRefresh);
 viewer.scene.postRender.addEventListener(()=>{
   const p=viewer.camera.positionCartographic;
   $<HTMLElement>("#altitude").textContent=p?Math.round(p.height/1000).toLocaleString()+" KM ALTITUDE":"GLOBAL VIEW";
