@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timezone
 from services.analyst.public_sources import (
-    PublicSourceError, aircraft_for_bbox, earthquakes,
+    PublicSourceError, aircraft_for_bbox, earthquakes, satellites,
 )
 
 
@@ -45,6 +45,21 @@ class PublicSourceAdapterTests(unittest.TestCase):
     def test_aircraft_rejects_invalid_bbox(self):
         with self.assertRaises(ValueError):
             aircraft_for_bbox((181, 0, 182, 1), fetch_json=lambda _: {})
+
+    def test_satellite_adapter_returns_explicitly_derived_position(self):
+        tle = (
+            "ISS (ZARYA)\\n"
+            "1 25544U 98067A   21275.51005787  .00001490  00000-0  33237-4 0  9993\\n"
+            "2 25544  51.6441 208.2413 0003886  84.7756  34.7952 15.48815329302845\\n"
+        )
+        result = satellites(limit=5, fetch_text=lambda _: tle,
+                            now=datetime(2021, 10, 2, tzinfo=timezone.utc))
+        self.assertGreaterEqual(result["count"], 1)
+        feature = result["features"][0]
+        self.assertEqual(feature["properties"]["kind"], "derived")
+        self.assertEqual(feature["properties"]["provider_id"], "celestrak-gp")
+        self.assertEqual(len(feature["geometry"]["coordinates"]), 3)
+        self.assertIn("SGP4", feature["properties"]["derivation_method"])
 
     def test_provider_errors_are_not_hidden_as_empty_data(self):
         def failed(_):
