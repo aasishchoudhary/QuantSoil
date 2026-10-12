@@ -308,6 +308,15 @@ async function refreshMap(){
   const features=[...byId.values()];
   recordAircraftAndTrails(features);
   paintSource({type:"FeatureCollection",features});
+  $<HTMLElement>("#aircraft-status").textContent=aircraftResult.status==="fulfilled"
+    ? aircraftFeed.features.length+" reports · regional coverage"
+    : "UNAVAILABLE"+(aircraftFeed.features.length?" · showing cached data":"");
+  $<HTMLElement>("#events-status").textContent=eventResult.status==="fulfilled"
+    ? earthquakeFeed.features.length+" USGS past-hour events"
+    : "UNAVAILABLE"+(earthquakeFeed.features.length?" · showing cached data":"");
+  $<HTMLElement>("#satellite-status").textContent=satelliteResult.status==="fulfilled"
+    ? satelliteFeed.features.length+" propagated · derived"
+    : "UNAVAILABLE"+(satelliteFeed.features.length?" · showing cached data":"");
   const partial=failures.length>0;
   status.textContent=partial?(features.length?"PARTIAL SOURCES":"SOURCES UNAVAILABLE"):"PUBLIC SOURCES CONNECTED";
   apiHealth.textContent=partial?"PARTIAL":"ONLINE";
