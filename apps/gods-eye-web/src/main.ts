@@ -1,6 +1,6 @@
 import {
-  Viewer, Cartesian3, GeoJsonDataSource, Color, ConstantProperty, ColorMaterialProperty,
-  OpenStreetMapImageryProvider, WebMapTileServiceImageryProvider, EllipsoidTerrainProvider,
+  Viewer, Cartesian2, Cartesian3, GeoJsonDataSource, Color, ConstantProperty, ColorMaterialProperty,
+  LabelStyle, OpenStreetMapImageryProvider, WebMapTileServiceImageryProvider, EllipsoidTerrainProvider,
   ScreenSpaceEventHandler, ScreenSpaceEventType, VerticalOrigin
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
@@ -123,7 +123,7 @@ function recordAircraftAndTrails(features:any[]){
     const image='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><path d="M20 2 L25 15 L36 22 L36 26 L24 23 L23 34 L29 37 L29 39 L20 36 L11 39 L11 37 L17 34 L16 23 L4 26 L4 22 L15 15 Z" fill="#44d9f5" stroke="#061019" stroke-width="1.4"/></svg>');
     let overlay=aircraftOverlays.get(id);
     if(!overlay){
-      const marker=viewer.entities.add({id:"motion:"+id,position:Cartesian3.fromDegrees(Number(coords[0]),Number(coords[1])),properties:{...props,entity_id:id},billboard:{image,scale:.85,rotation:0,alignedAxis:Cartesian3.UNIT_Z,verticalOrigin:VerticalOrigin.BOTTOM},label:{text:String(props.callsign||props.name||id),font:"10px sans-serif",fillColor:Color.fromCssColorString("#c9f8ff"),outlineColor:Color.fromCssColorString("#061019"),outlineWidth:3,style:2,pixelOffset:{x:0,y:-18} as any}});
+      const marker=viewer.entities.add({id:"motion:"+id,position:Cartesian3.fromDegrees(Number(coords[0]),Number(coords[1])),properties:{...props,entity_id:id},billboard:{image,scale:.85,rotation:0,alignedAxis:Cartesian3.UNIT_Z,verticalOrigin:VerticalOrigin.BOTTOM},label:{text:String(props.callsign||props.name||id),font:"10px sans-serif",fillColor:Color.fromCssColorString("#c9f8ff"),outlineColor:Color.fromCssColorString("#061019"),outlineWidth:3,style:LabelStyle.FILL_AND_OUTLINE,pixelOffset:new Cartesian2(0,-18)}});
       const trailEntity=viewer.entities.add({id:"trail:"+id,polyline:{positions:trail.map(p=>Cartesian3.fromDegrees(p.lon,p.lat)),width:2,material:new ColorMaterialProperty(Color.fromCssColorString("#44d9f5").withAlpha(.55))}});
       overlay={marker,trail:trailEntity};aircraftOverlays.set(id,overlay);
     }else{
