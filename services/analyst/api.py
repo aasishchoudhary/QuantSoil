@@ -6,6 +6,8 @@ import hmac
 import json
 import logging
 import os
+import threading
+import time
 from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -14,6 +16,28 @@ from services.analyst.public_sources import PublicSourceError, aircraft_for_bbox
 from services.analyst.orbital_sources import OrbitalSourceError, orbital_objects
 
 _LOG = logging.getLogger("gods_eye.analyst")
+_SOURCE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_SOURCE_CACHE_LOCK = threading.Lock()
+
+
+def _cached_public_source(key: str, ttl_seconds: int, producer) -> dict[str, Any]:
+    """Cache successful public-provider responses to bound request rates across clients."""
+    now = time.monotonic()
+    with _SOURCE_CACHE_LOCK:
+        cached = _SOURCE_CACHE.get(key)
+        if cached and cached[0] > now:
+            return cached[1]
+    result = producer()
+    with _SOURCE_CACHE_LOCK:
+        _SOURCE_CACHE[key] = (time.monotonic() + ttl_seconds, result)
+        if len(_SOURCE_CACHE) > 256:
+            now = time.monotonic()
+            for cache_key, (expires, _) in list(_SOURCE_CACHE.items()):
+                if expires <= now:
+                    _SOURCE_CACHE.pop(cache_key, None)
+            while len(_SOURCE_CACHE) > 256:
+                _SOURCE_CACHE.pop(next(iter(_SOURCE_CACHE)))
+    return result
 
 def create_app(service: AnalystService, audit_store=None) -> FastAPI:
     app = FastAPI(title="God's Eye World Intelligence — Analyst API", version="0.1.0")
@@ -65,7 +89,7 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
     def public_earthquakes() -> dict[str, Any]:
         """USGS past-hour earthquake observations; provider freshness is preserved."""
         try:
-            return earthquakes()
+            return _cached_public_source("usgs-earthquakes", 60, earthquakes)
         except PublicSourceError as exc:
             raise HTTPException(502, str(exc)) from exc
 
@@ -76,7 +100,10 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
         """Regional ADS-B observations from adsb.lol; not a global-coverage guarantee."""
         try:
             parts = tuple(float(x.strip()) for x in bbox.split(","))
-            return aircraft_for_bbox(parts)
+            if len(parts) != 4:
+                raise ValueError("bbox must contain minLon,minLat,maxLon,maxLat")
+            key = "adsb:" + ",".join(f"{value:.3f}" for value in parts)
+            return _cached_public_source(key, 15, lambda: aircraft_for_bbox(parts))
         except (ValueError, PublicSourceError) as exc:
             status_code = 502 if isinstance(exc, PublicSourceError) else 400
             raise HTTPException(status_code, str(exc)) from exc
@@ -85,7 +112,7 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
     def public_orbital_objects() -> dict[str, Any]:
         """Propagated station-group orbital positions; output is derived, not observed."""
         try:
-            return orbital_objects()
+            return _cached_public_source("celestrak-stations", 60, orbital_objects)
         except OrbitalSourceError as exc:
             raise HTTPException(502, str(exc)) from exc
 
