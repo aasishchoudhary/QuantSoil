@@ -223,12 +223,12 @@ function showEntity(feature:any){
   const p=featureProps(feature);
   const sourceUrl=safeHttpUrl(p.source_url);
   const authorizedStreamUrl=safeHttpUrl(p.authorized_stream_url);
+  const id=feature.id??p.id??p.entity_id??p.source_entity_id??"Unknown ID";
+  const kind=category(feature);
   const evidenceLinks=[
     sourceUrl?'<a href="'+safeText(sourceUrl)+'" target="_blank" rel="noopener noreferrer">OPEN SOURCE ↗</a>':"",
     kind==="camera"&&authorizedStreamUrl?.startsWith("https://")?'<a href="'+safeText(authorizedStreamUrl)+'" target="_blank" rel="noopener noreferrer">OPEN AUTHORIZED CAMERA ↗</a>':""
   ].join("");
-  const id=feature.id??p.id??p.entity_id??p.source_entity_id??"Unknown ID";
-  const kind=category(feature);
   const name=p.name||p.callsign||p.title||id;
   $<HTMLDivElement>("#inspector-empty").hidden=true;
   const details=$<HTMLDivElement>("#entity-details");details.hidden=false;
