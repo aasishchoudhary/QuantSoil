@@ -159,6 +159,13 @@ function safeText(value:any):string {
   return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]!));
 }
 function featureProps(feature:any):Record<string,any>{return feature?.properties||{};}
+function updateCoordinates(position:any){
+  const cartesian=viewer.camera.pickEllipsoid(position,viewer.scene.globe.ellipsoid);
+  if(!cartesian){$<HTMLElement>("#coordinates").textContent="LAT — / LON —";return;}
+  const cartographic=viewer.scene.globe.ellipsoid.cartesianToCartographic(cartesian);
+  const lat=cartographic.latitude*180/Math.PI,lon=cartographic.longitude*180/Math.PI;
+  $<HTMLElement>("#coordinates").textContent="LAT "+lat.toFixed(4)+"° / LON "+lon.toFixed(4)+"°";
+}
 function applyLayerVisibility(){
   for(const entity of viewer.entities.values){
     const id=String(entity.id??"");
@@ -189,6 +196,7 @@ function showEntity(feature:any){
   $<HTMLSpanElement>("#data-state").textContent="DATA STATE: ENTITY SELECTED";
 }
 handler.setInputAction((movement:any)=>{
+  updateCoordinates(movement.position);
   const picked=viewer.scene.pick(movement.position);
   if(!picked){return;}
   const entity=picked.id;
@@ -295,7 +303,7 @@ $<HTMLButtonElement>("#imagery-toggle").addEventListener("click",async()=>{
   const button=$<HTMLButtonElement>("#imagery-toggle");
   if(satelliteEnabled){
     if(satelliteLayer)viewer.imageryLayers.remove(satelliteLayer,true);
-    satelliteLayer=null;osmLayer.show=true;satelliteEnabled=false;
+    satelliteLayer=null;satelliteEnabled=false;
     button.classList.remove("active");
     button.textContent="SATELLITE";
     return;
@@ -309,7 +317,7 @@ $<HTMLButtonElement>("#imagery-toggle").addEventListener("click",async()=>{
       tileMatrixSetID:"GoogleMapsCompatible_Level9",maximumLevel:9
     });
     satelliteLayer=viewer.imageryLayers.addImageryProvider(provider);
-    osmLayer.show=false;satelliteEnabled=true;
+    satelliteEnabled=true;
     button.classList.add("active");button.textContent="SATELLITE ON";
   }catch(error){
     message.textContent="Satellite imagery could not be configured: "+String(error);
@@ -345,13 +353,7 @@ $<HTMLButtonElement>("#timeline").addEventListener("click",async()=>{
 });
 $<HTMLButtonElement>("#clear-timeline").addEventListener("click",()=>{results.textContent="Historical data appears here when available from the analyst API.";});
 // Update geographic readout from the actual globe point under the pointer.
-handler.setInputAction((movement:any)=>{
-  const cartesian=viewer.camera.pickEllipsoid(movement.endPosition,viewer.scene.globe.ellipsoid);
-  if(!cartesian){$<HTMLElement>("#coordinates").textContent="LAT — / LON —";return;}
-  const cartographic=viewer.scene.globe.ellipsoid.cartesianToCartographic(cartesian);
-  const lat=cartographic.latitude*180/Math.PI,lon=cartographic.longitude*180/Math.PI;
-  $<HTMLElement>("#coordinates").textContent="LAT "+lat.toFixed(4)+"° / LON "+lon.toFixed(4)+"°";
-},ScreenSpaceEventType.MOUSE_MOVE);
+handler.setInputAction((movement:any)=>updateCoordinates(movement.endPosition),ScreenSpaceEventType.MOUSE_MOVE);
 viewer.camera.changed.addEventListener(scheduleRefresh);
 viewer.scene.postRender.addEventListener(()=>{
   const p=viewer.camera.positionCartographic;
