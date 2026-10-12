@@ -310,8 +310,8 @@ async function refreshMap(){
   if(aircraftResult.status==="fulfilled")aircraftFeed.features=aircraftResult.value;else failures.push("Aircraft: "+String(aircraftResult.reason));
   if(eventResult.status==="fulfilled")earthquakeFeed.features=eventResult.value;else failures.push("Earthquakes: "+String(eventResult.reason));
   if(orbitalResult.status==="fulfilled")orbitalFeed.features=orbitalResult.value;else failures.push("Orbital: "+String(orbitalResult.reason));
-  if(vesselResult.status==="fulfilled")vesselFeed.features=vesselResult.value;else failures.push("Maritime: "+String(vesselResult.reason));
-  if(cameraResult.status==="fulfilled")cameraFeed.features=cameraResult.value;else failures.push("Authorized camera metadata: "+String(cameraResult.reason));
+  if(vesselResult.status==="fulfilled")vesselFeed.features=vesselResult.value;else if(!String(vesselResult.reason).includes("503"))failures.push("Maritime: "+String(vesselResult.reason));
+  if(cameraResult.status==="fulfilled")cameraFeed.features=cameraResult.value;else if(!String(cameraResult.reason).includes("503"))failures.push("Authorized camera metadata: "+String(cameraResult.reason));
   if(seq!==refreshSeq)return;
   const combined=[...analystFeatures,...aircraftFeed.features,...earthquakeFeed.features,...orbitalFeed.features,...vesselFeed.features,...cameraFeed.features];
   // Deduplicate by stable provider feature ID, preferring the freshest returned copy.
