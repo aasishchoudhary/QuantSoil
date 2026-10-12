@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 from services.analyst.query import AnalystQueryError, AnalystService
-from services.analyst.public_sources import PublicSourceError, aircraft_for_bbox, earthquakes
+from services.analyst.public_sources import (PublicSourceError, PublicSourceNotConfigured, aircraft_for_bbox, configured_geojson_feed, earthquakes)
 from services.analyst.orbital_sources import OrbitalSourceError, orbital_objects
 
 _LOG = logging.getLogger("gods_eye.analyst")
@@ -107,6 +107,42 @@ def create_app(service: AnalystService, audit_store=None) -> FastAPI:
         except (ValueError, PublicSourceError) as exc:
             status_code = 502 if isinstance(exc, PublicSourceError) else 400
             raise HTTPException(status_code, str(exc)) from exc
+
+    @app.get("/sources/maritime")
+    def public_maritime() -> dict[str, Any]:
+        """Optional licensed AIS GeoJSON feed configured by the deployment operator."""
+        try:
+            return _cached_public_source(
+                "configured-maritime", 15,
+                lambda: configured_geojson_feed(
+                    "vessel", url_env="QUANTSOIL_AIS_GEOJSON_URL",
+                    token_env="QUANTSOIL_AIS_BEARER_TOKEN",
+                    provider_env="QUANTSOIL_AIS_PROVIDER_ID",
+                    license_env="QUANTSOIL_AIS_LICENSE_ID",
+                ),
+            )
+        except PublicSourceNotConfigured as exc:
+            raise HTTPException(503, str(exc)) from exc
+        except PublicSourceError as exc:
+            raise HTTPException(502, str(exc)) from exc
+
+    @app.get("/sources/cameras")
+    def authorized_camera_metadata() -> dict[str, Any]:
+        """Optional authorized camera metadata feed; does not proxy or unlock video streams."""
+        try:
+            return _cached_public_source(
+                "authorized-camera-metadata", 60,
+                lambda: configured_geojson_feed(
+                    "camera", url_env="QUANTSOIL_AUTHORIZED_CAMERA_GEOJSON_URL",
+                    token_env="QUANTSOIL_AUTHORIZED_CAMERA_BEARER_TOKEN",
+                    provider_env="QUANTSOIL_AUTHORIZED_CAMERA_PROVIDER_ID",
+                    license_env="QUANTSOIL_AUTHORIZED_CAMERA_LICENSE_ID",
+                ),
+            )
+        except PublicSourceNotConfigured as exc:
+            raise HTTPException(503, str(exc)) from exc
+        except PublicSourceError as exc:
+            raise HTTPException(502, str(exc)) from exc
 
     @app.get("/sources/orbital")
     def public_orbital_objects() -> dict[str, Any]:
