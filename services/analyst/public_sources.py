@@ -29,7 +29,10 @@ def _fetch_json(url: str, *, timeout: float = 8.0) -> dict[str, Any]:
         with urlopen(request, timeout=timeout) as response:
             if response.status != 200:
                 raise PublicSourceError(f"provider returned HTTP {response.status}")
-            payload = json.loads(response.read(8_000_001))
+            body = response.read(8_000_001)
+            if len(body) > 8_000_000:
+                raise PublicSourceError("provider response exceeds the 8 MB safety limit")
+            payload = json.loads(body)
     except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise PublicSourceError(f"public provider request failed: {type(exc).__name__}") from exc
     if not isinstance(payload, dict):
@@ -95,8 +98,26 @@ def aircraft_for_bbox(bbox: tuple[float, float, float, float], *, fetch_json=_fe
         raise ValueError("bbox coordinates must be finite")
     if not (-180 <= west <= 180 and -180 <= east <= 180 and -90 <= south <= 90 and -90 <= north <= 90):
         raise ValueError("bbox outside WGS84 bounds")
-    if west > east or south > north:
-        raise ValueError("bbox crosses antimeridian or has inverted latitude bounds; split the request")
+    if south > north:
+        raise ValueError("bbox has inverted latitude bounds")
+    if west > east:
+        # Longitude wraps at the antimeridian. Query each side independently so
+        # the center calculation never points at Greenwich for a dateline view.
+        left = aircraft_for_bbox((west, south, 180.0, north), fetch_json=fetch_json)
+        right = aircraft_for_bbox((-180.0, south, east, north), fetch_json=fetch_json)
+        by_id = {}
+        for feature in left["features"] + right["features"]:
+            by_id.setdefault(feature["id"], feature)
+        features = list(by_id.values())
+        return {
+            "type": "FeatureCollection",
+            "source": "adsb-lol",
+            "retrieved_at": max(left["retrieved_at"], right["retrieved_at"]),
+            "coverage_radius_nm": max(left["coverage_radius_nm"], right["coverage_radius_nm"]),
+            "count": len(features),
+            "features": features,
+            "coverage_note": "Antimeridian viewport queried as two regional requests; receiver coverage varies.",
+        }
     lat = (south + north) / 2
     lon = (west + east) / 2
     # Approximate bounding-box half-diagonal in km, capped to the documented endpoint limit.
@@ -135,7 +156,7 @@ def aircraft_for_bbox(bbox: tuple[float, float, float, float], *, fetch_json=_fe
             "freshness": freshness, "kind": "observed", "coverage_note": "Receiver coverage varies; not global or guaranteed.",
             "altitude_baro_ft": item.get("alt_baro"), "ground_speed_kt": item.get("gs"),
             "track_deg": item.get("track"), "vertical_rate_fpm": item.get("baro_rate"),
-            "squawk": item.get("squawk"), "on_ground": item.get("alt_baro") == "ground",
+            "squawk": item.get("squawk"), "on_ground": item.get("alt_baro") == "ground" or item.get("on_ground") is True,
         }
         features.append({
             "type": "Feature", "id": "adsb:" + hex_id,
