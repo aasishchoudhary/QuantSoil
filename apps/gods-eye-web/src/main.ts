@@ -481,7 +481,7 @@ $<HTMLButtonElement>("#imagery-toggle").addEventListener("click",async()=>{
     message.classList.remove("hidden");
   }finally{button.disabled=false;}
 });
-$<HTMLButtonElement>("#clear-selection").addEventListener("click",()=>{selected=null;$<HTMLDivElement>("#entity-details").hidden=true;$<HTMLDivElement>("#inspector-empty").hidden=false;$<HTMLSpanElement>("#data-state").textContent="DATA STATE: NO ENTITY SELECTED";});
+$<HTMLButtonElement>("#clear-selection").addEventListener("click",()=>{selected=null;$<HTMLDivElement>("#entity-details").hidden=true;$<HTMLDivElement>("#inspector-empty").hidden=false;$<HTMLSpanElement>("#data-state").textContent="DATA STATE: NO ENTITY SELECTED";;$<HTMLDivElement>("#evidence-graph").innerHTML=`<div class="graph-lines"></div><span class="graph-node center">EVIDENCE</span><span class="graph-node n1">DOC</span><span class="graph-node n2">ENTITY</span><span class="graph-node n3">EVENT</span><span class="graph-node n4">GEO</span><span class="graph-node n5">SRC</span><span class="graph-node n6">TIME</span><p>Select a record to show explicit metadata references.</p>`;});
 $<HTMLButtonElement>("#toggle-left").addEventListener("click",()=>{
   $<HTMLElement>(".left-panel").classList.toggle("collapsed");
   $<HTMLElement>(".workspace").classList.toggle("left-collapsed");
