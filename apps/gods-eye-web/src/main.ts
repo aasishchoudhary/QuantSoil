@@ -261,6 +261,36 @@ function showEntity(feature:any){
   details.innerHTML=`<div class="entity-type"><span class="layer-icon ${kind==="aircraft"?"cyan":kind==="event"?"amber":kind==="satellite"||kind==="camera"?"violet":"green"}">${kind==="aircraft"?"✈":kind==="event"?"⌁":kind==="satellite"?"◉":kind==="vessel"?"◆":kind==="camera"?"▣":"⌖"}</span><span>${safeText(kind.toUpperCase())}</span><span class="freshness">${safeText(p.freshness||"FRESHNESS UNKNOWN")}</span></div><h2 class="entity-title">${safeText(name)}</h2><div class="entity-id">${safeText(id)}</div><div class="section-label">OBSERVATION PROPERTIES</div><div class="property-grid">${entries.map(([k,v])=>`<div class="property"><small>${safeText(k.replace(/_/g," ").toUpperCase())}</small><b>${safeText(propValue(v))}</b></div>`).join("")}</div><div class="evidence-box"><div class="evidence-title">PROVENANCE</div><div>Source: ${safeText(p.provider_id||p.source||"Not supplied")}</div><div>Observed: ${safeText(p.observed_at||p.timestamp||"Unknown")}</div><div>Evidence ref: ${safeText(p.evidence_id||p.evidence_ref||"Not supplied")}</div>${evidenceLinks}</div>`;
   $<HTMLInputElement>("#entity-id").value=String(id);
   $<HTMLSpanElement>("#data-state").textContent="DATA STATE: ENTITY SELECTED";
+  renderEvidenceGraph(feature);
+}
+function renderEvidenceGraph(feature:any){
+  const p=featureProps(feature);
+  const root=$<HTMLDivElement>("#evidence-graph");
+  const mainLabel=String(p.name||p.callsign||p.title||feature.id||"Selected record");
+  const refs:any[]=[];
+  const collect=(key:string,value:any)=>{
+    if(value===null||value===undefined||value==="")return;
+    if(Array.isArray(value)){value.slice(0,6).forEach((v,i)=>collect(key+" "+(i+1),v));return;}
+    if(typeof value==="object"){return;}
+    refs.push({label:key,value:String(value)});
+  };
+  for(const key of ["evidence_id","evidence_ref","evidence_refs","source_id","source_entity_id","provider_id","event_id","location_id","entity_id","parent_id","related_ids","related_entity_ids","observation_id","source_url","observed_at","timestamp"]){
+    if(Object.prototype.hasOwnProperty.call(p,key))collect(key,p[key]);
+  }
+  const unique=new Map<string,{label:string;value:string}>();
+  for(const item of refs){
+    const normalized=item.value.trim();
+    if(!normalized||normalized===String(feature.id??"")||normalized===mainLabel)continue;
+    unique.set(item.label+":"+normalized,{label:item.label,value:normalized});
+    if(unique.size>=6)break;
+  }
+  const nodes=[...unique.values()];
+  const links=nodes.length?nodes.map((node,i)=>{
+    const angle=(-Math.PI/2)+(i/nodes.length)*Math.PI*2;
+    const x=50+37*Math.cos(angle),y=50+35*Math.sin(angle);
+    return '<div class="dynamic-edge" style="left:50%;top:50%;width:'+Math.hypot((x-50)*2.5,(y-50)*2.5).toFixed(1)+'%;transform:rotate('+Math.atan2(y-50,x-50)+'rad)"></div><button class="dynamic-node" style="left:'+x+'%;top:'+y+'%" title="'+safeText(node.label+': '+node.value)+'"><small>'+safeText(node.label.replace(/_/g," ").toUpperCase())+'</small><b>'+safeText(node.value.length>24?node.value.slice(0,21)+"…":node.value)+'</b></button>';
+  }).join(""):'<div class="graph-no-links">No explicit relationship references on this record.</div>';
+  root.innerHTML='<div class="graph-lines"></div><div class="graph-center-node"><small>SELECTED</small><b>'+safeText(mainLabel.length>26?mainLabel.slice(0,23)+"…":mainLabel)+'</b></div>'+links+'<p>'+nodes.length+' explicit metadata reference(s); no inferred links.</p>';
 }
 handler.setInputAction((movement:any)=>{
   updateCoordinates(movement.position);
