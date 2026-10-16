@@ -489,6 +489,27 @@ async function runSearch(){
 }
 $<HTMLButtonElement>("#search-go").addEventListener("click",runSearch);
 $<HTMLInputElement>("#search").addEventListener("keydown",e=>{if(e.key==="Enter")runSearch();});
+$<HTMLButtonElement>("#load-entity-timeline").addEventListener("click",()=> $<HTMLButtonElement>("#timeline").click());
+$<HTMLButtonElement>("#expand-graph").addEventListener("click",()=>{
+  const graph=$<HTMLDivElement>("#evidence-graph");
+  graph.classList.toggle("expanded");
+  $<HTMLButtonElement>("#expand-graph").textContent=graph.classList.contains("expanded")?"COLLAPSE GRAPH ↙":"VIEW GRAPH ↗";
+});
+$<HTMLButtonElement>("#imagery-gallery").addEventListener("click",()=>{
+  const statusText=[ "Earthquakes: "+earthquakeFeed.features.length, "Orbital: "+orbitalFeed.features.length, "Aircraft: "+aircraftFeed.features.length, "Maritime: "+vesselFeed.features.length, "Authorized camera metadata: "+cameraFeed.features.length ].join(" · ");
+  message.textContent=statusText;
+  message.classList.remove("hidden");
+});
+document.querySelectorAll<HTMLButtonElement>("[data-section]").forEach(button=>button.addEventListener("click",()=>{
+  document.querySelectorAll<HTMLButtonElement>("[data-section]").forEach(item=>item.classList.toggle("selected",item===button));
+  const section=button.dataset.section;
+  if(section==="globe"||section==="maps"){viewer.camera.flyTo({destination:Cartesian3.fromDegrees(78,23,12500000),duration:.8});}
+  if(section==="entities"){ $<HTMLInputElement>("#search").focus(); }
+  if(section==="timeline"){ $<HTMLInputElement>("#entity-id").focus(); }
+  if(section==="evidence"){ $<HTMLDivElement>("#evidence-graph").classList.add("expanded"); }
+  if(section==="investigations"){ $<HTMLElement>(".insights-card").scrollIntoView({behavior:"smooth",block:"center"}); }
+  if(section==="reports"){ $<HTMLElement>(".provenance-card").scrollIntoView({behavior:"smooth",block:"center"}); }
+}));
 $<HTMLButtonElement>("#timeline").addEventListener("click",async()=>{
   const id=$<HTMLInputElement>("#entity-id").value.trim();if(!id){results.textContent="Select an entity or enter an identifier.";return;}
   results.textContent="Loading timeline…";
