@@ -308,6 +308,22 @@ function paintSource(data:any){
       viewer.dataSources.add(ds);applyLayerVisibility();
     }).catch(()=>{message.textContent="Map payload could not be rendered.";});
   }
+  $<HTMLElement>("#kpi-features").textContent=String(sourceFeatures.length);
+  $<HTMLElement>("#kpi-features-note").textContent=sourceFeatures.length ? "Returned by configured feeds" : "No observations returned";
+  const counts={aircraft:0,satellite:0,event:0,vessel:0,camera:0,other:0};
+  sourceFeatures.forEach(f=>counts[category(f) as keyof typeof counts]++);
+  $<HTMLElement>("#kpi-events").textContent=String(counts.event);
+  $<HTMLElement>("#kpi-orbital").textContent=String(counts.satellite);
+  const respondingFeeds=[aircraftFeed,earthquakeFeed,orbitalFeed,vesselFeed,cameraFeed].filter(f=>!f.error && Date.now() < f.expires).length;
+  $<HTMLElement>("#kpi-sources").textContent=respondingFeeds+"/5";
+  $<HTMLElement>("#kpi-sources-note").textContent="Recent feed responses; not uptime";
+  $<HTMLElement>("#kpi-confidence").textContent="N/A";
+  $<HTMLElement>("#imagery-events-status").textContent=earthquakeFeed.features.length+" observations returned";
+  $<HTMLElement>("#imagery-orbital-status").textContent=orbitalFeed.features.length+" propagated positions returned";
+  $<HTMLElement>("#map-freshness").textContent=sourceFeatures.some(f=>f.properties?.observed_at||f.properties?.timestamp) ? "TIMESTAMPS AVAILABLE" : "FRESHNESS UNKNOWN";
+  const events=sourceFeatures.filter(f=>category(f)==="event").slice(0,5);
+  $<HTMLElement>("#event-count").textContent=String(counts.event);
+  $<HTMLElement>("#recent-events").innerHTML=events.length?events.map((f:any)=>{const p=f.properties||{};const title=p.title||p.name||p.event_type||"Earth event";const where=p.place||p.region||p.location||"Location not supplied";const when=p.observed_at||p.timestamp||p.updated_at||"Time not supplied";const magnitude=p.magnitude??p.severity??p.priority;return '<div class="event-row"><span class="event-icon">⌁</span><div class="event-main"><b>'+safeText(title)+'</b><small>'+safeText(where)+' · '+safeText(when)+'</small></div><span class="event-meta">'+safeText(magnitude===undefined?"SOURCE DATA":("LEVEL "+magnitude))+'<em>OBSERVED</em></span></div>';}).join(""):'<div class="empty-card">No event observations returned by the configured feeds. Nothing is being fabricated as a live event.</div>';
   $<HTMLSpanElement>("#feature-total").textContent=sourceFeatures.length+" FEATURES";
   const counts={aircraft:0,satellite:0,event:0,vessel:0,camera:0,other:0};
   sourceFeatures.forEach(f=>counts[category(f) as keyof typeof counts]++);
