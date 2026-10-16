@@ -73,6 +73,7 @@ jobs:
         id: model
         env:
           AWS_REGION: ap-south-1
+          GODS_EYE_BEDROCK_PROFILE_ID: ${{ vars.GODS_EYE_BEDROCK_PROFILE_ID }}
         run: |
           aws sts get-caller-identity
           python - <<'PY' > /tmp/model.txt
@@ -84,6 +85,19 @@ jobs:
               "apac.amazon.nova-micro-v1:0",
           }
 
+          # An operator can pin an approved inference-profile ID when IAM
+          # deliberately omits discovery permissions. Invocation remains
+          # constrained by the separate allowlisted resource policy.
+          configured = os.environ.get("GODS_EYE_BEDROCK_PROFILE_ID", "").strip()
+          if configured:
+              if configured not in preferred:
+                  raise SystemExit(
+                      "GODS_EYE_BEDROCK_PROFILE_ID must match an approved "
+                      "APAC Nova Lite/Micro profile ID."
+                  )
+              print(configured)
+              raise SystemExit(0)
+
           p = subprocess.run(
               ["aws", "bedrock", "list-inference-profiles",
                "--region", region, "--type-equals", "SYSTEM_DEFINED",
@@ -91,7 +105,16 @@ jobs:
               text=True, capture_output=True, check=False,
           )
           if p.returncode != 0:
-              print(p.stderr.strip(), file=sys.stderr)
+              error = p.stderr.strip()
+              print(error, file=sys.stderr)
+              if "AccessDeniedException" in error or "not authorized" in error:
+                  raise SystemExit(
+                      "Bedrock discovery is denied. Apply the least-privilege "
+                      "infrastructure/aws/autonomy policy with "
+                      "bedrock:ListInferenceProfiles, or configure the repository "
+                      "variable GODS_EYE_BEDROCK_PROFILE_ID to an approved profile "
+                      "ID and verify that the role can invoke its exact ARN."
+                  )
               raise SystemExit("Unable to discover Bedrock inference profiles")
 
           data = json.loads(p.stdout)
@@ -106,7 +129,8 @@ jobs:
                   raise SystemExit(0)
           raise SystemExit(
               "No ACTIVE APAC Nova Lite/Micro system-defined inference profile "
-              "is available in ap-south-1"
+              "is available in ap-south-1. Set GODS_EYE_BEDROCK_PROFILE_ID only "
+              "after confirming profile availability and invocation permissions."
           )
           PY
           echo "model_id=$(cat /tmp/model.txt)" >> "$GITHUB_OUTPUT"
