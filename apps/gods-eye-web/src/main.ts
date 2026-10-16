@@ -58,7 +58,7 @@ const viewer = new Viewer("globe", {
   animation:false, timeline:false, baseLayerPicker:false, geocoder:false, homeButton:false,
   navigationHelpButton:false, sceneModePicker:false, fullscreenButton:false,
   infoBox:false, selectionIndicator:false, terrainProvider:new EllipsoidTerrainProvider(),
-  scene3DOnly:true, requestRenderMode:true, maximumRenderTimeChange:1,
+  scene3DOnly:false, requestRenderMode:true, maximumRenderTimeChange:1,
 });
 viewer.imageryLayers.removeAll();
 const osmProvider=new OpenStreetMapImageryProvider({url:"https://tile.openstreetmap.org/"});

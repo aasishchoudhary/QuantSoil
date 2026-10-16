@@ -1,7 +1,8 @@
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone
 from services.analyst.public_sources import (
-    PublicSourceError, aircraft_for_bbox, earthquakes,
+    PublicSourceError, _fetch_json, aircraft_for_bbox, earthquakes,
 )
 
 
@@ -42,10 +43,45 @@ class PublicSourceAdapterTests(unittest.TestCase):
         self.assertEqual(feature["properties"]["freshness"], "fresh")
         self.assertEqual(feature["properties"]["ground_speed_kt"], 240)
 
+    def test_antimeridian_bbox_queries_both_sides_and_deduplicates(self):
+        called = []
+        def fake_fetch(url):
+            called.append(url)
+            return {"aircraft": [{
+                "hex": "dateline1", "lat": 10.0, "lon": 179.8,
+                "seen_pos": 5, "on_ground": False
+            }]}
+        result = aircraft_for_bbox((179.0, 9.0, -179.0, 11.0), fetch_json=fake_fetch)
+        self.assertEqual(len(called), 2)
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(result["features"][0]["id"], "adsb:dateline1")
+        self.assertIn("Antimeridian", result["coverage_note"])
+        self.assertIn("/lon/179.50000/", called[0])
+        self.assertIn("/lon/-179.50000/", called[1])
+
+    def test_explicit_on_ground_flag_is_preserved(self):
+        result = aircraft_for_bbox(
+            (86.8, 24.9, 87.4, 25.5),
+            fetch_json=lambda _: {"aircraft": [{
+                "hex": "ground1", "lat": 25.2, "lon": 87.1,
+                "alt_baro": 0, "on_ground": True
+            }]},
+        )
+        self.assertTrue(result["features"][0]["properties"]["on_ground"])
+
     def test_aircraft_rejects_invalid_bbox(self):
         with self.assertRaises(ValueError):
             aircraft_for_bbox((181, 0, 182, 1), fetch_json=lambda _: {})
 
+    def test_json_fetch_rejects_oversized_response(self):
+        class OversizedResponse:
+            status = 200
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+            def read(self, limit): return b"x" * limit
+        with patch("services.analyst.public_sources.urlopen", return_value=OversizedResponse()):
+            with self.assertRaisesRegex(PublicSourceError, "8 MB"):
+                _fetch_json("https://example.org/feed")
     def test_provider_errors_are_not_hidden_as_empty_data(self):
         def failed(_):
             raise PublicSourceError("provider down")
