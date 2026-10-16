@@ -11,45 +11,70 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
 <div class="ops">
   <header class="topbar">
-    <div class="brand"><div class="brand-mark">Q</div><div><b>QUANTSOIL</b><small>WORLD INTELLIGENCE SYSTEM</small></div></div>
+    <div class="brand"><div class="brand-mark">Q</div><div><b>QUANTSOIL</b><small>WORLD INTELLIGENCE PLATFORM</small></div></div>
+    <div class="global-search"><span>⌕</span><input id="search" placeholder="Search locations, entities, events, coordinates, evidence…"/><button id="search-go" aria-label="Search">↵</button></div>
     <div class="top-center"><span class="pulse"></span><span id="connection">INITIALIZING SOURCES</span><span class="top-divider"></span><span id="clock">--:--:-- UTC</span></div>
-    <div class="top-actions"><button id="refresh" title="Refresh source data">↻ <span>REFRESH</span></button><button id="toggle-left" title="Toggle layer panel" aria-label="Toggle layer panel">☰</button><button id="home" title="Reset globe camera">⌂</button><button id="toggle-right" title="Toggle inspector">▤</button></div>
+    <div class="top-actions"><button id="refresh" title="Refresh source data">↻ <span>SYNC</span></button><button id="toggle-left" title="Toggle navigation" aria-label="Toggle navigation">☰</button><button id="home" title="Reset globe camera">⌂</button><button id="toggle-right" title="Toggle inspector">▤</button></div>
   </header>
   <div class="workspace">
     <aside class="left-panel">
-      <div class="panel-head"><span>GLOBAL MONITOR</span><span class="live-dot"></span></div>
-      <div class="search-wrap"><span>⌕</span><input id="search" placeholder="Search entity / identifier"/><button id="search-go">↵</button></div>
-      <div class="section-label">INTELLIGENCE LAYERS <span id="layer-count">06</span></div>
+      <div class="panel-head"><span>WORKSPACE NAVIGATION</span><span class="live-dot"></span></div>
+      <div class="nav-group">
+        <div class="nav-caption">INTELLIGENCE</div>
+        <button class="nav-item selected" data-section="overview"><span>◈</span><b>Overview</b><small>Global situation</small></button>
+        <button class="nav-item" data-section="globe"><span>◎</span><b>3D Globe</b><small>World view</small></button>
+        <button class="nav-item" data-section="maps"><span>⌖</span><b>Maps & analysis</b><small>Layers and terrain</small></button>
+        <button class="nav-item" data-section="investigations"><span>⌘</span><b>Investigations</b><small>AI-assisted workflow</small></button>
+        <button class="nav-item" data-section="entities"><span>♧</span><b>Entities & events</b><small>Observation index</small></button>
+        <button class="nav-item" data-section="evidence"><span>⬡</span><b>Evidence graph</b><small>Relationship analysis</small></button>
+        <button class="nav-item" data-section="timeline"><span>⌁</span><b>Temporal analysis</b><small>Time and change</small></button>
+        <button class="nav-item" data-section="reports"><span>▤</span><b>Reports</b><small>Auditable findings</small></button>
+      </div>
+      <div class="section-label">GEOINT LAYERS <span id="layer-count">06</span></div>
       <div class="layer-list">
         <label class="layer-row"><span class="layer-icon cyan">✈</span><span class="layer-copy"><b>Aircraft & flight data</b><small id="aircraft-status">Waiting for source</small></span><input type="checkbox" data-layer="aircraft" checked/><i></i></label>
-        <label class="layer-row"><span class="layer-icon violet">◉</span><span class="layer-copy"><b>Satellite / orbital objects</b><small id="satellite-status">Provider not configured</small></span><input type="checkbox" data-layer="satellite" checked/><i></i></label>
+        <label class="layer-row"><span class="layer-icon violet">◉</span><span class="layer-copy"><b>Satellite / orbital</b><small id="satellite-status">Provider not configured</small></span><input type="checkbox" data-layer="satellite" checked/><i></i></label>
         <label class="layer-row"><span class="layer-icon amber">⌁</span><span class="layer-copy"><b>Earth events</b><small id="events-status">Waiting for source</small></span><input type="checkbox" data-layer="event" checked/><i></i></label>
-        <label class="layer-row"><span class="layer-icon green">◆</span><span class="layer-copy"><b>Vessels / maritime</b><small id="vessel-status">No AIS provider configured</small></span><input type="checkbox" data-layer="vessel" checked/><i></i></label>
-        <label class="layer-row"><span class="layer-icon violet">▣</span><span class="layer-copy"><b>Authorized camera metadata</b><small id="camera-status">No authorized source configured</small></span><input type="checkbox" data-layer="camera" checked/><i></i></label>
+        <label class="layer-row"><span class="layer-icon green">◆</span><span class="layer-copy"><b>Maritime observations</b><small id="vessel-status">No AIS provider configured</small></span><input type="checkbox" data-layer="vessel" checked/><i></i></label>
+        <label class="layer-row"><span class="layer-icon violet">▣</span><span class="layer-copy"><b>Authorized camera metadata</b><small id="camera-status">No source configured</small></span><input type="checkbox" data-layer="camera" checked/><i></i></label>
         <label class="layer-row"><span class="layer-icon green">⌖</span><span class="layer-copy"><b>Other spatial evidence</b><small id="other-status">Waiting for source</small></span><input type="checkbox" data-layer="other" checked/><i></i></label>
       </div>
       <div class="section-label">MAP CONTROLS</div>
-      <div class="control-list"><button id="zoom-in"><span>＋</span> Zoom in</button><button id="zoom-out"><span>－</span> Zoom out</button><button id="camera-reset"><span>◎</span> Reset global view</button><button id="terrain-toggle"><span>△</span> 3D terrain / buildings</button><button id="clear-selection"><span>×</span> Clear selection</button></div>
+      <div class="control-list"><button id="zoom-in"><span>＋</span> Zoom in</button><button id="zoom-out"><span>－</span> Zoom out</button><button id="camera-reset"><span>◎</span> Global view</button><button id="terrain-toggle"><span>△</span> 3D terrain</button></div>
       <div class="section-label">SOURCE HEALTH</div>
-      <div id="source-health" class="health-card"><div><span class="health-dot idle"></span><b>Analyst API</b><span id="api-health" class="health-state">CHECKING</span></div><p>Layer data is queried from the configured QuantSoil analyst API. No feed is assumed live without source timestamps.</p><div class="health-foot"><span>LAST CHECK</span><span id="last-check">—</span></div></div>
+      <div id="source-health" class="health-card"><div><span class="health-dot idle"></span><b>Analyst API</b><span id="api-health" class="health-state">CHECKING</span></div><p>Source availability reflects actual API responses. Unconfigured feeds are never represented as live.</p><div class="health-foot"><span>LAST CHECK</span><span id="last-check">—</span></div></div>
       <div class="left-footer">EVIDENCE FIRST <span>•</span> PROVENANCE ALWAYS</div>
     </aside>
-    <section class="map-wrap"><div id="globe"></div>
-      <div class="map-top"><div class="coord-chip"><span class="crosshair">⌖</span><span id="coordinates">LAT — / LON —</span></div><div class="map-buttons"><button id="view-3d" class="active">3D GLOBE</button><button id="view-2d">2D MAP</button><button id="imagery-toggle" title="Toggle NASA GIBS satellite imagery">SATELLITE</button></div></div>
-      <div class="map-bottom-left"><span class="scale-line"></span><span id="altitude">GLOBAL VIEW</span><span class="map-sep">|</span><span id="feature-total">0 FEATURES</span></div>
-      <div class="map-bottom-right"><span class="legend-dot cyan-bg"></span> AIRCRAFT <span class="legend-dot amber-bg"></span> EVENTS <span class="legend-dot violet-bg"></span> ORBITAL <span class="legend-dot vessel-bg"></span> VESSELS <span class="legend-dot grey-bg"></span> OTHER</div>
-      <div id="map-message" class="map-message">Connecting to governed spatial API…</div>
-    </section>
-    <aside id="inspector" class="right-panel">
-      <div class="panel-head"><span>ENTITY INTELLIGENCE</span><button id="close-inspector" aria-label="Close inspector">×</button></div>
-      <div id="inspector-empty" class="empty-inspector"><div class="target-icon">⌖</div><b>No entity selected</b><p>Select a marker on the globe to inspect available properties and evidence.</p></div>
-      <div id="entity-details" hidden></div>
-      <div class="section-label">TIMELINE / HISTORY</div>
-      <label class="field-label">Entity identifier<input id="entity-id" placeholder="Select an entity or enter ID"/></label>
-      <div class="timeline-actions"><button id="timeline">LOAD TIMELINE</button><button id="clear-timeline">CLEAR</button></div>
-      <div id="timeline-results" class="timeline-results">Historical data appears here when available from the analyst API.</div>
-      <div class="right-footer">SOURCE DATA MAY BE DELAYED OR INCOMPLETE</div>
-    </aside>
+    <main class="main-stage">
+      <section class="kpi-strip">
+        <article class="kpi-card"><div class="kpi-icon cyan">⌖</div><div><small>SPATIAL FEATURES</small><b id="kpi-features">—</b><span id="kpi-features-note">Waiting for API</span></div><i>◌</i></article>
+        <article class="kpi-card"><div class="kpi-icon green">⌁</div><div><small>EARTH EVENTS</small><b id="kpi-events">—</b><span>Public USGS source</span></div><i>⌁</i></article>
+        <article class="kpi-card"><div class="kpi-icon violet">◉</div><div><small>ORBITAL OBJECTS</small><b id="kpi-orbital">—</b><span>Propagated positions</span></div><i>◌</i></article>
+        <article class="kpi-card"><div class="kpi-icon amber">⌁</div><div><small>ACTIVE SOURCES</small><b id="kpi-sources">—</b><span id="kpi-sources-note">Availability pending</span></div><i>▤</i></article>
+        <article class="kpi-card"><div class="kpi-icon cyan">⬡</div><div><small>DATA CONFIDENCE</small><b id="kpi-confidence">—</b><span>Not inferred from uptime</span></div><i>◇</i></article>
+      </section>
+      <section class="primary-row">
+        <section class="map-card">
+          <div class="card-heading"><div><span class="eyebrow">GLOBAL VIEW</span><h1>World Intelligence <em>•</em> Spatial Context</h1></div><div class="map-buttons"><button id="view-3d" class="active">3D GLOBE</button><button id="view-2d">2D MAP</button><button id="imagery-toggle">SATELLITE</button></div></div>
+          <div class="map-canvas"><div id="globe"></div><div class="map-overlay-top"><span class="coord-chip"><span class="crosshair">⌖</span><span id="coordinates">LAT — / LON —</span></span><span class="map-mode-tag"><i></i> GEOSPATIAL ENGINE</span></div><div class="map-bottom-left"><span class="scale-line"></span><span id="altitude">GLOBAL VIEW</span><span class="map-sep">|</span><span id="feature-total">0 FEATURES</span></div><div class="map-bottom-right"><span class="legend-dot cyan-bg"></span> AIRCRAFT <span class="legend-dot amber-bg"></span> EVENTS <span class="legend-dot violet-bg"></span> ORBITAL <span class="legend-dot vessel-bg"></span> MARITIME</div><div id="map-message" class="map-message">Connecting to governed spatial API…</div></div>
+          <div class="map-card-footer"><span><i class="status-square"></i> WGS84 COORDINATES</span><span>OBSERVATIONS · DERIVED DATA SEPARATED</span><span id="map-freshness">FRESHNESS UNKNOWN</span></div>
+        </section>
+        <div class="side-stack">
+          <section class="dashboard-card events-card"><div class="card-heading compact"><div><span class="eyebrow">OBSERVATION STREAM</span><h2>Recent Events <span id="event-count" class="count-pill">0</span></h2></div><span class="live-tag"><i></i> SOURCE-DRIVEN</span></div><div id="recent-events" class="event-list"><div class="empty-card">Events will appear when a configured source returns observations.</div></div></section>
+          <section class="dashboard-card insights-card"><div class="card-heading compact"><div><span class="eyebrow">ASSISTED ANALYSIS</span><h2>AI Investigation Insights</h2></div><span class="state-tag">VALIDATION REQUIRED</span></div><div id="ai-insights" class="insight-body"><div class="insight-symbol">✳</div><div><b>No validated insight available</b><p>Analysis appears only when the configured inference service returns a validated result with provenance.</p><span>INFERENCE STATUS: NOT VERIFIED</span></div></div></section>
+          <section class="dashboard-card mini-graph-card"><div class="card-heading compact"><div><span class="eyebrow">EVIDENCE FUSION</span><h2>Relationship Graph</h2></div><button id="expand-graph" class="text-action">VIEW GRAPH ↗</button></div><div id="evidence-graph" class="mini-graph"><div class="graph-lines"></div><span class="graph-node center">EVIDENCE</span><span class="graph-node n1">DOC</span><span class="graph-node n2">ENTITY</span><span class="graph-node n3">EVENT</span><span class="graph-node n4">GEO</span><span class="graph-node n5">SRC</span><span class="graph-node n6">TIME</span><p>Nodes populate from selected evidence relationships.</p></div></section>
+        </div>
+      </section>
+      <section class="secondary-row">
+        <section class="dashboard-card timeline-card"><div class="card-heading compact"><div><span class="eyebrow">TEMPORAL RECONSTRUCTION</span><h2>Event Timeline</h2></div><button id="timeline" class="text-action">LOAD HISTORY ↗</button></div><div class="timeline-rail"><div id="timeline-results" class="timeline-results">Select an entity and load its recorded history. No past state is fabricated.</div></div><div class="timeline-foot"><span>TIME RANGE <b>LAST 7 DAYS</b></span><span>TIME BASIS <b>UTC</b></span></div></section>
+        <section class="dashboard-card imagery-card"><div class="card-heading compact"><div><span class="eyebrow">REMOTE SENSING</span><h2>Imagery & Source Coverage</h2></div><button id="imagery-gallery" class="text-action">SOURCE STATUS ↗</button></div><div id="imagery-gallery-items" class="imagery-gallery"><div class="imagery-placeholder"><span>◈</span><b>NASA GIBS</b><small>Toggle satellite imagery on the globe</small></div><div class="imagery-placeholder"><span>▧</span><b>USGS EVENTS</b><small id="imagery-events-status">Waiting for source result</small></div><div class="imagery-placeholder"><span>◎</span><b>ORBITAL FEED</b><small id="imagery-orbital-status">Waiting for source result</small></div></div></section>
+        <section class="dashboard-card provenance-card"><div class="card-heading compact"><div><span class="eyebrow">DATA LINEAGE</span><h2>Provenance Tracking</h2></div><span class="state-tag">TRACEABLE</span></div><div class="provenance-flow"><div class="prov-step"><span>01</span><b>Source</b><small>Provider record</small></div><i>→</i><div class="prov-step"><span>02</span><b>Normalize</b><small>Schema check</small></div><i>→</i><div class="prov-step"><span>03</span><b>Validate</b><small>Trust boundary</small></div><i>→</i><div class="prov-step"><span>04</span><b>Inspect</b><small>Analyst review</small></div></div><div class="provenance-note">Trace metadata is shown per observation when provided. This diagram describes the workflow, not a claim that every record passed every stage.</div></section>
+      </section>
+      <section class="bottom-panels">
+        <section class="dashboard-card system-card"><div class="card-heading compact"><div><span class="eyebrow">RUNTIME OPERATIONS</span><h2>System Monitoring</h2></div><span id="system-status" class="state-tag">UNKNOWN</span></div><div class="system-metrics"><div><span class="system-ring cyan-ring">API</span><b id="system-api">UNKNOWN</b><small>Analyst endpoint</small></div><div><span class="system-ring green-ring">GEO</span><b id="system-geo">UNKNOWN</b><small>Spatial source</small></div><div><span class="system-ring violet-ring">AI</span><b>UNVERIFIED</b><small>Inference service</small></div><div><span class="system-ring amber-ring">DB</span><b>UNVERIFIED</b><small>Persistence health</small></div></div></section>
+        <section class="dashboard-card selected-evidence-card"><div class="card-heading compact"><div><span class="eyebrow">INSPECTION WORKSPACE</span><h2>Selected Evidence</h2></div><button id="clear-selection" class="text-action">CLEAR</button></div><div id="inspector-empty" class="empty-inspector"><div class="target-icon">⌖</div><b>No entity selected</b><p>Select a marker on the globe or use global search to inspect available properties and provenance.</p></div><div id="entity-details" hidden></div><label class="field-label">Entity identifier<input id="entity-id" placeholder="Select an entity or enter ID"/></label><div class="timeline-actions"><button id="load-entity-timeline">LOAD HISTORY</button><button id="clear-timeline">CLEAR</button></div></section>
+      </section>
+    </main>
   </div>
   <div class="bottom-status"><span><i class="status-square"></i> QUANTSOIL ANALYST WORKSPACE</span><span id="data-state">DATA STATE: NOT YET VERIFIED</span><span>WGS84 · UTC</span></div>
 </div>`;
@@ -236,6 +261,36 @@ function showEntity(feature:any){
   details.innerHTML=`<div class="entity-type"><span class="layer-icon ${kind==="aircraft"?"cyan":kind==="event"?"amber":kind==="satellite"||kind==="camera"?"violet":"green"}">${kind==="aircraft"?"✈":kind==="event"?"⌁":kind==="satellite"?"◉":kind==="vessel"?"◆":kind==="camera"?"▣":"⌖"}</span><span>${safeText(kind.toUpperCase())}</span><span class="freshness">${safeText(p.freshness||"FRESHNESS UNKNOWN")}</span></div><h2 class="entity-title">${safeText(name)}</h2><div class="entity-id">${safeText(id)}</div><div class="section-label">OBSERVATION PROPERTIES</div><div class="property-grid">${entries.map(([k,v])=>`<div class="property"><small>${safeText(k.replace(/_/g," ").toUpperCase())}</small><b>${safeText(propValue(v))}</b></div>`).join("")}</div><div class="evidence-box"><div class="evidence-title">PROVENANCE</div><div>Source: ${safeText(p.provider_id||p.source||"Not supplied")}</div><div>Observed: ${safeText(p.observed_at||p.timestamp||"Unknown")}</div><div>Evidence ref: ${safeText(p.evidence_id||p.evidence_ref||"Not supplied")}</div>${evidenceLinks}</div>`;
   $<HTMLInputElement>("#entity-id").value=String(id);
   $<HTMLSpanElement>("#data-state").textContent="DATA STATE: ENTITY SELECTED";
+  renderEvidenceGraph(feature);
+}
+function renderEvidenceGraph(feature:any){
+  const p=featureProps(feature);
+  const root=$<HTMLDivElement>("#evidence-graph");
+  const mainLabel=String(p.name||p.callsign||p.title||feature.id||"Selected record");
+  const refs:any[]=[];
+  const collect=(key:string,value:any)=>{
+    if(value===null||value===undefined||value==="")return;
+    if(Array.isArray(value)){value.slice(0,6).forEach((v,i)=>collect(key+" "+(i+1),v));return;}
+    if(typeof value==="object"){return;}
+    refs.push({label:key,value:String(value)});
+  };
+  for(const key of ["evidence_id","evidence_ref","evidence_refs","source_id","source_entity_id","provider_id","event_id","location_id","entity_id","parent_id","related_ids","related_entity_ids","observation_id","source_url","observed_at","timestamp"]){
+    if(Object.prototype.hasOwnProperty.call(p,key))collect(key,p[key]);
+  }
+  const unique=new Map<string,{label:string;value:string}>();
+  for(const item of refs){
+    const normalized=item.value.trim();
+    if(!normalized||normalized===String(feature.id??"")||normalized===mainLabel)continue;
+    unique.set(item.label+":"+normalized,{label:item.label,value:normalized});
+    if(unique.size>=6)break;
+  }
+  const nodes=[...unique.values()];
+  const links=nodes.length?nodes.map((node,i)=>{
+    const angle=(-Math.PI/2)+(i/nodes.length)*Math.PI*2;
+    const x=50+37*Math.cos(angle),y=50+35*Math.sin(angle);
+    return '<div class="dynamic-edge" style="left:50%;top:50%;width:'+Math.hypot((x-50)*2.5,(y-50)*2.5).toFixed(1)+'%;transform:rotate('+Math.atan2(y-50,x-50)+'rad)"></div><button class="dynamic-node" style="left:'+x+'%;top:'+y+'%" title="'+safeText(node.label+': '+node.value)+'"><small>'+safeText(node.label.replace(/_/g," ").toUpperCase())+'</small><b>'+safeText(node.value.length>24?node.value.slice(0,21)+"…":node.value)+'</b></button>';
+  }).join(""):'<div class="graph-no-links">No explicit relationship references on this record.</div>';
+  root.innerHTML='<div class="graph-lines"></div><div class="graph-center-node"><small>SELECTED</small><b>'+safeText(mainLabel.length>26?mainLabel.slice(0,23)+"…":mainLabel)+'</b></div>'+links+'<p>'+nodes.length+' explicit metadata reference(s); no inferred links.</p>';
 }
 handler.setInputAction((movement:any)=>{
   updateCoordinates(movement.position);
@@ -283,9 +338,23 @@ function paintSource(data:any){
       viewer.dataSources.add(ds);applyLayerVisibility();
     }).catch(()=>{message.textContent="Map payload could not be rendered.";});
   }
-  $<HTMLSpanElement>("#feature-total").textContent=sourceFeatures.length+" FEATURES";
+  $<HTMLElement>("#kpi-features").textContent=String(sourceFeatures.length);
+  $<HTMLElement>("#kpi-features-note").textContent=sourceFeatures.length ? "Returned by configured feeds" : "No observations returned";
   const counts={aircraft:0,satellite:0,event:0,vessel:0,camera:0,other:0};
   sourceFeatures.forEach(f=>counts[category(f) as keyof typeof counts]++);
+  $<HTMLElement>("#kpi-events").textContent=String(counts.event);
+  $<HTMLElement>("#kpi-orbital").textContent=String(counts.satellite);
+  const respondingFeeds=[aircraftFeed,earthquakeFeed,orbitalFeed,vesselFeed,cameraFeed].filter(f=>!f.error && Date.now() < f.expires).length;
+  $<HTMLElement>("#kpi-sources").textContent=respondingFeeds+"/5";
+  $<HTMLElement>("#kpi-sources-note").textContent="Recent feed responses; not uptime";
+  $<HTMLElement>("#kpi-confidence").textContent="N/A";
+  $<HTMLElement>("#imagery-events-status").textContent=earthquakeFeed.features.length+" observations returned";
+  $<HTMLElement>("#imagery-orbital-status").textContent=orbitalFeed.features.length+" propagated positions returned";
+  $<HTMLElement>("#map-freshness").textContent=sourceFeatures.some(f=>f.properties?.observed_at||f.properties?.timestamp) ? "TIMESTAMPS AVAILABLE" : "FRESHNESS UNKNOWN";
+  const events=sourceFeatures.filter(f=>category(f)==="event").slice(0,5);
+  $<HTMLElement>("#event-count").textContent=String(counts.event);
+  $<HTMLElement>("#recent-events").innerHTML=events.length?events.map((f:any)=>{const p=f.properties||{};const title=p.title||p.name||p.event_type||"Earth event";const where=p.place||p.region||p.location||"Location not supplied";const when=p.observed_at||p.timestamp||p.updated_at||"Time not supplied";const magnitude=p.magnitude??p.severity??p.priority;return '<div class="event-row"><span class="event-icon">⌁</span><div class="event-main"><b>'+safeText(title)+'</b><small>'+safeText(where)+' · '+safeText(when)+'</small></div><span class="event-meta">'+safeText(magnitude===undefined?"SOURCE DATA":("LEVEL "+magnitude))+'<em>OBSERVED</em></span></div>';}).join(""):'<div class="empty-card">No event observations returned by the configured feeds. Nothing is being fabricated as a live event.</div>';
+  $<HTMLSpanElement>("#feature-total").textContent=sourceFeatures.length+" FEATURES";
   $<HTMLElement>("#aircraft-status").textContent=counts.aircraft+" features returned";
   $<HTMLElement>("#satellite-status").textContent=counts.satellite+" features returned";
   $<HTMLElement>("#events-status").textContent=counts.event+" features returned";
@@ -412,7 +481,7 @@ $<HTMLButtonElement>("#imagery-toggle").addEventListener("click",async()=>{
     message.classList.remove("hidden");
   }finally{button.disabled=false;}
 });
-$<HTMLButtonElement>("#clear-selection").addEventListener("click",()=>{selected=null;$<HTMLDivElement>("#entity-details").hidden=true;$<HTMLDivElement>("#inspector-empty").hidden=false;$<HTMLSpanElement>("#data-state").textContent="DATA STATE: NO ENTITY SELECTED";});
+$<HTMLButtonElement>("#clear-selection").addEventListener("click",()=>{selected=null;$<HTMLDivElement>("#entity-details").hidden=true;$<HTMLDivElement>("#inspector-empty").hidden=false;$<HTMLSpanElement>("#data-state").textContent="DATA STATE: NO ENTITY SELECTED";;$<HTMLDivElement>("#evidence-graph").innerHTML=`<div class="graph-lines"></div><span class="graph-node center">EVIDENCE</span><span class="graph-node n1">DOC</span><span class="graph-node n2">ENTITY</span><span class="graph-node n3">EVENT</span><span class="graph-node n4">GEO</span><span class="graph-node n5">SRC</span><span class="graph-node n6">TIME</span><p>Select a record to show explicit metadata references.</p>`;});
 $<HTMLButtonElement>("#toggle-left").addEventListener("click",()=>{
   $<HTMLElement>(".left-panel").classList.toggle("collapsed");
   $<HTMLElement>(".workspace").classList.toggle("left-collapsed");
@@ -448,6 +517,27 @@ async function runSearch(){
 }
 $<HTMLButtonElement>("#search-go").addEventListener("click",runSearch);
 $<HTMLInputElement>("#search").addEventListener("keydown",e=>{if(e.key==="Enter")runSearch();});
+$<HTMLButtonElement>("#load-entity-timeline").addEventListener("click",()=> $<HTMLButtonElement>("#timeline").click());
+$<HTMLButtonElement>("#expand-graph").addEventListener("click",()=>{
+  const graph=$<HTMLDivElement>("#evidence-graph");
+  graph.classList.toggle("expanded");
+  $<HTMLButtonElement>("#expand-graph").textContent=graph.classList.contains("expanded")?"COLLAPSE GRAPH ↙":"VIEW GRAPH ↗";
+});
+$<HTMLButtonElement>("#imagery-gallery").addEventListener("click",()=>{
+  const statusText=[ "Earthquakes: "+earthquakeFeed.features.length, "Orbital: "+orbitalFeed.features.length, "Aircraft: "+aircraftFeed.features.length, "Maritime: "+vesselFeed.features.length, "Authorized camera metadata: "+cameraFeed.features.length ].join(" · ");
+  message.textContent=statusText;
+  message.classList.remove("hidden");
+});
+document.querySelectorAll<HTMLButtonElement>("[data-section]").forEach(button=>button.addEventListener("click",()=>{
+  document.querySelectorAll<HTMLButtonElement>("[data-section]").forEach(item=>item.classList.toggle("selected",item===button));
+  const section=button.dataset.section;
+  if(section==="globe"||section==="maps"){viewer.camera.flyTo({destination:Cartesian3.fromDegrees(78,23,12500000),duration:.8});}
+  if(section==="entities"){ $<HTMLInputElement>("#search").focus(); }
+  if(section==="timeline"){ $<HTMLInputElement>("#entity-id").focus(); }
+  if(section==="evidence"){ $<HTMLDivElement>("#evidence-graph").classList.add("expanded"); }
+  if(section==="investigations"){ $<HTMLElement>(".insights-card").scrollIntoView({behavior:"smooth",block:"center"}); }
+  if(section==="reports"){ $<HTMLElement>(".provenance-card").scrollIntoView({behavior:"smooth",block:"center"}); }
+}));
 $<HTMLButtonElement>("#timeline").addEventListener("click",async()=>{
   const id=$<HTMLInputElement>("#entity-id").value.trim();if(!id){results.textContent="Select an entity or enter an identifier.";return;}
   results.textContent="Loading timeline…";
