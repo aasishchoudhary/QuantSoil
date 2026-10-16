@@ -11,45 +11,70 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
 <div class="ops">
   <header class="topbar">
-    <div class="brand"><div class="brand-mark">Q</div><div><b>QUANTSOIL</b><small>WORLD INTELLIGENCE SYSTEM</small></div></div>
+    <div class="brand"><div class="brand-mark">Q</div><div><b>QUANTSOIL</b><small>WORLD INTELLIGENCE PLATFORM</small></div></div>
+    <div class="global-search"><span>⌕</span><input id="search" placeholder="Search locations, entities, events, coordinates, evidence…"/><button id="search-go" aria-label="Search">↵</button></div>
     <div class="top-center"><span class="pulse"></span><span id="connection">INITIALIZING SOURCES</span><span class="top-divider"></span><span id="clock">--:--:-- UTC</span></div>
-    <div class="top-actions"><button id="refresh" title="Refresh source data">↻ <span>REFRESH</span></button><button id="toggle-left" title="Toggle layer panel" aria-label="Toggle layer panel">☰</button><button id="home" title="Reset globe camera">⌂</button><button id="toggle-right" title="Toggle inspector">▤</button></div>
+    <div class="top-actions"><button id="refresh" title="Refresh source data">↻ <span>SYNC</span></button><button id="toggle-left" title="Toggle navigation" aria-label="Toggle navigation">☰</button><button id="home" title="Reset globe camera">⌂</button><button id="toggle-right" title="Toggle inspector">▤</button></div>
   </header>
   <div class="workspace">
     <aside class="left-panel">
-      <div class="panel-head"><span>GLOBAL MONITOR</span><span class="live-dot"></span></div>
-      <div class="search-wrap"><span>⌕</span><input id="search" placeholder="Search entity / identifier"/><button id="search-go">↵</button></div>
-      <div class="section-label">INTELLIGENCE LAYERS <span id="layer-count">06</span></div>
+      <div class="panel-head"><span>WORKSPACE NAVIGATION</span><span class="live-dot"></span></div>
+      <div class="nav-group">
+        <div class="nav-caption">INTELLIGENCE</div>
+        <button class="nav-item selected" data-section="overview"><span>◈</span><b>Overview</b><small>Global situation</small></button>
+        <button class="nav-item" data-section="globe"><span>◎</span><b>3D Globe</b><small>World view</small></button>
+        <button class="nav-item" data-section="maps"><span>⌖</span><b>Maps & analysis</b><small>Layers and terrain</small></button>
+        <button class="nav-item" data-section="investigations"><span>⌘</span><b>Investigations</b><small>AI-assisted workflow</small></button>
+        <button class="nav-item" data-section="entities"><span>♧</span><b>Entities & events</b><small>Observation index</small></button>
+        <button class="nav-item" data-section="evidence"><span>⬡</span><b>Evidence graph</b><small>Relationship analysis</small></button>
+        <button class="nav-item" data-section="timeline"><span>⌁</span><b>Temporal analysis</b><small>Time and change</small></button>
+        <button class="nav-item" data-section="reports"><span>▤</span><b>Reports</b><small>Auditable findings</small></button>
+      </div>
+      <div class="section-label">GEOINT LAYERS <span id="layer-count">06</span></div>
       <div class="layer-list">
         <label class="layer-row"><span class="layer-icon cyan">✈</span><span class="layer-copy"><b>Aircraft & flight data</b><small id="aircraft-status">Waiting for source</small></span><input type="checkbox" data-layer="aircraft" checked/><i></i></label>
-        <label class="layer-row"><span class="layer-icon violet">◉</span><span class="layer-copy"><b>Satellite / orbital objects</b><small id="satellite-status">Provider not configured</small></span><input type="checkbox" data-layer="satellite" checked/><i></i></label>
+        <label class="layer-row"><span class="layer-icon violet">◉</span><span class="layer-copy"><b>Satellite / orbital</b><small id="satellite-status">Provider not configured</small></span><input type="checkbox" data-layer="satellite" checked/><i></i></label>
         <label class="layer-row"><span class="layer-icon amber">⌁</span><span class="layer-copy"><b>Earth events</b><small id="events-status">Waiting for source</small></span><input type="checkbox" data-layer="event" checked/><i></i></label>
-        <label class="layer-row"><span class="layer-icon green">◆</span><span class="layer-copy"><b>Vessels / maritime</b><small id="vessel-status">No AIS provider configured</small></span><input type="checkbox" data-layer="vessel" checked/><i></i></label>
-        <label class="layer-row"><span class="layer-icon violet">▣</span><span class="layer-copy"><b>Authorized camera metadata</b><small id="camera-status">No authorized source configured</small></span><input type="checkbox" data-layer="camera" checked/><i></i></label>
+        <label class="layer-row"><span class="layer-icon green">◆</span><span class="layer-copy"><b>Maritime observations</b><small id="vessel-status">No AIS provider configured</small></span><input type="checkbox" data-layer="vessel" checked/><i></i></label>
+        <label class="layer-row"><span class="layer-icon violet">▣</span><span class="layer-copy"><b>Authorized camera metadata</b><small id="camera-status">No source configured</small></span><input type="checkbox" data-layer="camera" checked/><i></i></label>
         <label class="layer-row"><span class="layer-icon green">⌖</span><span class="layer-copy"><b>Other spatial evidence</b><small id="other-status">Waiting for source</small></span><input type="checkbox" data-layer="other" checked/><i></i></label>
       </div>
       <div class="section-label">MAP CONTROLS</div>
-      <div class="control-list"><button id="zoom-in"><span>＋</span> Zoom in</button><button id="zoom-out"><span>－</span> Zoom out</button><button id="camera-reset"><span>◎</span> Reset global view</button><button id="terrain-toggle"><span>△</span> 3D terrain / buildings</button><button id="clear-selection"><span>×</span> Clear selection</button></div>
+      <div class="control-list"><button id="zoom-in"><span>＋</span> Zoom in</button><button id="zoom-out"><span>－</span> Zoom out</button><button id="camera-reset"><span>◎</span> Global view</button><button id="terrain-toggle"><span>△</span> 3D terrain</button></div>
       <div class="section-label">SOURCE HEALTH</div>
-      <div id="source-health" class="health-card"><div><span class="health-dot idle"></span><b>Analyst API</b><span id="api-health" class="health-state">CHECKING</span></div><p>Layer data is queried from the configured QuantSoil analyst API. No feed is assumed live without source timestamps.</p><div class="health-foot"><span>LAST CHECK</span><span id="last-check">—</span></div></div>
+      <div id="source-health" class="health-card"><div><span class="health-dot idle"></span><b>Analyst API</b><span id="api-health" class="health-state">CHECKING</span></div><p>Source availability reflects actual API responses. Unconfigured feeds are never represented as live.</p><div class="health-foot"><span>LAST CHECK</span><span id="last-check">—</span></div></div>
       <div class="left-footer">EVIDENCE FIRST <span>•</span> PROVENANCE ALWAYS</div>
     </aside>
-    <section class="map-wrap"><div id="globe"></div>
-      <div class="map-top"><div class="coord-chip"><span class="crosshair">⌖</span><span id="coordinates">LAT — / LON —</span></div><div class="map-buttons"><button id="view-3d" class="active">3D GLOBE</button><button id="view-2d">2D MAP</button><button id="imagery-toggle" title="Toggle NASA GIBS satellite imagery">SATELLITE</button></div></div>
-      <div class="map-bottom-left"><span class="scale-line"></span><span id="altitude">GLOBAL VIEW</span><span class="map-sep">|</span><span id="feature-total">0 FEATURES</span></div>
-      <div class="map-bottom-right"><span class="legend-dot cyan-bg"></span> AIRCRAFT <span class="legend-dot amber-bg"></span> EVENTS <span class="legend-dot violet-bg"></span> ORBITAL <span class="legend-dot vessel-bg"></span> VESSELS <span class="legend-dot grey-bg"></span> OTHER</div>
-      <div id="map-message" class="map-message">Connecting to governed spatial API…</div>
-    </section>
-    <aside id="inspector" class="right-panel">
-      <div class="panel-head"><span>ENTITY INTELLIGENCE</span><button id="close-inspector" aria-label="Close inspector">×</button></div>
-      <div id="inspector-empty" class="empty-inspector"><div class="target-icon">⌖</div><b>No entity selected</b><p>Select a marker on the globe to inspect available properties and evidence.</p></div>
-      <div id="entity-details" hidden></div>
-      <div class="section-label">TIMELINE / HISTORY</div>
-      <label class="field-label">Entity identifier<input id="entity-id" placeholder="Select an entity or enter ID"/></label>
-      <div class="timeline-actions"><button id="timeline">LOAD TIMELINE</button><button id="clear-timeline">CLEAR</button></div>
-      <div id="timeline-results" class="timeline-results">Historical data appears here when available from the analyst API.</div>
-      <div class="right-footer">SOURCE DATA MAY BE DELAYED OR INCOMPLETE</div>
-    </aside>
+    <main class="main-stage">
+      <section class="kpi-strip">
+        <article class="kpi-card"><div class="kpi-icon cyan">⌖</div><div><small>SPATIAL FEATURES</small><b id="kpi-features">—</b><span id="kpi-features-note">Waiting for API</span></div><i>◌</i></article>
+        <article class="kpi-card"><div class="kpi-icon green">⌁</div><div><small>EARTH EVENTS</small><b id="kpi-events">—</b><span>Public USGS source</span></div><i>⌁</i></article>
+        <article class="kpi-card"><div class="kpi-icon violet">◉</div><div><small>ORBITAL OBJECTS</small><b id="kpi-orbital">—</b><span>Propagated positions</span></div><i>◌</i></article>
+        <article class="kpi-card"><div class="kpi-icon amber">⌁</div><div><small>ACTIVE SOURCES</small><b id="kpi-sources">—</b><span id="kpi-sources-note">Availability pending</span></div><i>▤</i></article>
+        <article class="kpi-card"><div class="kpi-icon cyan">⬡</div><div><small>DATA CONFIDENCE</small><b id="kpi-confidence">—</b><span>Not inferred from uptime</span></div><i>◇</i></article>
+      </section>
+      <section class="primary-row">
+        <section class="map-card">
+          <div class="card-heading"><div><span class="eyebrow">GLOBAL VIEW</span><h1>World Intelligence <em>•</em> Spatial Context</h1></div><div class="map-buttons"><button id="view-3d" class="active">3D GLOBE</button><button id="view-2d">2D MAP</button><button id="imagery-toggle">SATELLITE</button></div></div>
+          <div class="map-canvas"><div id="globe"></div><div class="map-overlay-top"><span class="coord-chip"><span class="crosshair">⌖</span><span id="coordinates">LAT — / LON —</span></span><span class="map-mode-tag"><i></i> GEOSPATIAL ENGINE</span></div><div class="map-bottom-left"><span class="scale-line"></span><span id="altitude">GLOBAL VIEW</span><span class="map-sep">|</span><span id="feature-total">0 FEATURES</span></div><div class="map-bottom-right"><span class="legend-dot cyan-bg"></span> AIRCRAFT <span class="legend-dot amber-bg"></span> EVENTS <span class="legend-dot violet-bg"></span> ORBITAL <span class="legend-dot vessel-bg"></span> MARITIME</div><div id="map-message" class="map-message">Connecting to governed spatial API…</div></div>
+          <div class="map-card-footer"><span><i class="status-square"></i> WGS84 COORDINATES</span><span>OBSERVATIONS · DERIVED DATA SEPARATED</span><span id="map-freshness">FRESHNESS UNKNOWN</span></div>
+        </section>
+        <div class="side-stack">
+          <section class="dashboard-card events-card"><div class="card-heading compact"><div><span class="eyebrow">OBSERVATION STREAM</span><h2>Recent Events <span id="event-count" class="count-pill">0</span></h2></div><span class="live-tag"><i></i> SOURCE-DRIVEN</span></div><div id="recent-events" class="event-list"><div class="empty-card">Events will appear when a configured source returns observations.</div></div></section>
+          <section class="dashboard-card insights-card"><div class="card-heading compact"><div><span class="eyebrow">ASSISTED ANALYSIS</span><h2>AI Investigation Insights</h2></div><span class="state-tag">VALIDATION REQUIRED</span></div><div id="ai-insights" class="insight-body"><div class="insight-symbol">✳</div><div><b>No validated insight available</b><p>Analysis appears only when the configured inference service returns a validated result with provenance.</p><span>INFERENCE STATUS: NOT VERIFIED</span></div></div></section>
+          <section class="dashboard-card mini-graph-card"><div class="card-heading compact"><div><span class="eyebrow">EVIDENCE FUSION</span><h2>Relationship Graph</h2></div><button id="expand-graph" class="text-action">VIEW GRAPH ↗</button></div><div id="evidence-graph" class="mini-graph"><div class="graph-lines"></div><span class="graph-node center">EVIDENCE</span><span class="graph-node n1">DOC</span><span class="graph-node n2">ENTITY</span><span class="graph-node n3">EVENT</span><span class="graph-node n4">GEO</span><span class="graph-node n5">SRC</span><span class="graph-node n6">TIME</span><p>Nodes populate from selected evidence relationships.</p></div></section>
+        </div>
+      </section>
+      <section class="secondary-row">
+        <section class="dashboard-card timeline-card"><div class="card-heading compact"><div><span class="eyebrow">TEMPORAL RECONSTRUCTION</span><h2>Event Timeline</h2></div><button id="timeline" class="text-action">LOAD HISTORY ↗</button></div><div class="timeline-rail"><div id="timeline-results" class="timeline-results">Select an entity and load its recorded history. No past state is fabricated.</div></div><div class="timeline-foot"><span>TIME RANGE <b>LAST 7 DAYS</b></span><span>TIME BASIS <b>UTC</b></span></div></section>
+        <section class="dashboard-card imagery-card"><div class="card-heading compact"><div><span class="eyebrow">REMOTE SENSING</span><h2>Imagery & Source Coverage</h2></div><button id="imagery-gallery" class="text-action">SOURCE STATUS ↗</button></div><div id="imagery-gallery-items" class="imagery-gallery"><div class="imagery-placeholder"><span>◈</span><b>NASA GIBS</b><small>Toggle satellite imagery on the globe</small></div><div class="imagery-placeholder"><span>▧</span><b>USGS EVENTS</b><small id="imagery-events-status">Waiting for source result</small></div><div class="imagery-placeholder"><span>◎</span><b>ORBITAL FEED</b><small id="imagery-orbital-status">Waiting for source result</small></div></div></section>
+        <section class="dashboard-card provenance-card"><div class="card-heading compact"><div><span class="eyebrow">DATA LINEAGE</span><h2>Provenance Tracking</h2></div><span class="state-tag">TRACEABLE</span></div><div class="provenance-flow"><div class="prov-step"><span>01</span><b>Source</b><small>Provider record</small></div><i>→</i><div class="prov-step"><span>02</span><b>Normalize</b><small>Schema check</small></div><i>→</i><div class="prov-step"><span>03</span><b>Validate</b><small>Trust boundary</small></div><i>→</i><div class="prov-step"><span>04</span><b>Inspect</b><small>Analyst review</small></div></div><div class="provenance-note">Trace metadata is shown per observation when provided. This diagram describes the workflow, not a claim that every record passed every stage.</div></section>
+      </section>
+      <section class="bottom-panels">
+        <section class="dashboard-card system-card"><div class="card-heading compact"><div><span class="eyebrow">RUNTIME OPERATIONS</span><h2>System Monitoring</h2></div><span id="system-status" class="state-tag">UNKNOWN</span></div><div class="system-metrics"><div><span class="system-ring cyan-ring">API</span><b id="system-api">UNKNOWN</b><small>Analyst endpoint</small></div><div><span class="system-ring green-ring">GEO</span><b id="system-geo">UNKNOWN</b><small>Spatial source</small></div><div><span class="system-ring violet-ring">AI</span><b>UNVERIFIED</b><small>Inference service</small></div><div><span class="system-ring amber-ring">DB</span><b>UNVERIFIED</b><small>Persistence health</small></div></div></section>
+        <section class="dashboard-card selected-evidence-card"><div class="card-heading compact"><div><span class="eyebrow">INSPECTION WORKSPACE</span><h2>Selected Evidence</h2></div><button id="clear-selection" class="text-action">CLEAR</button></div><div id="inspector-empty" class="empty-inspector"><div class="target-icon">⌖</div><b>No entity selected</b><p>Select a marker on the globe or use global search to inspect available properties and provenance.</p></div><div id="entity-details" hidden></div><label class="field-label">Entity identifier<input id="entity-id" placeholder="Select an entity or enter ID"/></label><div class="timeline-actions"><button id="load-entity-timeline">LOAD HISTORY</button><button id="clear-timeline">CLEAR</button></div></section>
+      </section>
+    </main>
   </div>
   <div class="bottom-status"><span><i class="status-square"></i> QUANTSOIL ANALYST WORKSPACE</span><span id="data-state">DATA STATE: NOT YET VERIFIED</span><span>WGS84 · UTC</span></div>
 </div>`;
