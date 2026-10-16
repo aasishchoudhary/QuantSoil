@@ -325,8 +325,6 @@ function paintSource(data:any){
   $<HTMLElement>("#event-count").textContent=String(counts.event);
   $<HTMLElement>("#recent-events").innerHTML=events.length?events.map((f:any)=>{const p=f.properties||{};const title=p.title||p.name||p.event_type||"Earth event";const where=p.place||p.region||p.location||"Location not supplied";const when=p.observed_at||p.timestamp||p.updated_at||"Time not supplied";const magnitude=p.magnitude??p.severity??p.priority;return '<div class="event-row"><span class="event-icon">⌁</span><div class="event-main"><b>'+safeText(title)+'</b><small>'+safeText(where)+' · '+safeText(when)+'</small></div><span class="event-meta">'+safeText(magnitude===undefined?"SOURCE DATA":("LEVEL "+magnitude))+'<em>OBSERVED</em></span></div>';}).join(""):'<div class="empty-card">No event observations returned by the configured feeds. Nothing is being fabricated as a live event.</div>';
   $<HTMLSpanElement>("#feature-total").textContent=sourceFeatures.length+" FEATURES";
-  const counts={aircraft:0,satellite:0,event:0,vessel:0,camera:0,other:0};
-  sourceFeatures.forEach(f=>counts[category(f) as keyof typeof counts]++);
   $<HTMLElement>("#aircraft-status").textContent=counts.aircraft+" features returned";
   $<HTMLElement>("#satellite-status").textContent=counts.satellite+" features returned";
   $<HTMLElement>("#events-status").textContent=counts.event+" features returned";
